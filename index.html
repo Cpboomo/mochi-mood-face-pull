@@ -48,7 +48,7 @@
           <b id="timerText">∞</b>
         </div>
         <div class="quest-chip">
-          <span id="questText">舌头三连弹</span>
+          <span id="questText">嘴巴三连拽</span>
           <i aria-hidden="true"><em id="questFill"></em></i>
         </div>
         <div class="score-chip">
@@ -60,10 +60,9 @@
       <div id="speechBubble" class="speech-bubble glass-card" aria-live="polite"></div>
 
       <section class="part-tabs glass-card" aria-label="拖拽部位">
-        <button class="active" data-part-tab="tongue" type="button"><span aria-hidden="true">∪</span>舌头</button>
+        <button class="active" data-part-tab="mouth" type="button"><span aria-hidden="true">⌣</span>嘴巴</button>
         <button data-part-tab="cheek" type="button"><span aria-hidden="true">○</span>脸颊</button>
         <button data-part-tab="nose" type="button"><span aria-hidden="true">⌇</span>鼻子</button>
-        <button data-part-tab="mouth" type="button"><span aria-hidden="true">⌣</span>嘴角</button>
         <button data-part-tab="ear" type="button"><span aria-hidden="true">◖</span>耳朵</button>
         <button data-part-tab="hair" type="button"><span aria-hidden="true">⌁</span>头发</button>
       </section>
@@ -71,7 +70,7 @@
       <section id="gestureHint" class="bottom-panel glass-card" aria-label="拖拽反馈">
         <div class="panel-copy">
           <strong id="interactionTitle">拖拽强度预览</strong>
-          <span id="interactionDetail">拉长，松手，回弹</span>
+          <span id="interactionDetail">点住嘴巴，往外拽，松手回弹</span>
         </div>
         <div class="coin-pill" aria-label="金币">
           <span aria-hidden="true">★</span>
@@ -86,7 +85,7 @@
 
       <aside id="debugPanel" class="debug-panel glass-card" aria-label="调参工具" hidden>
         <header>
-          <h1>舌头调参</h1>
+          <h1>嘴巴调参</h1>
           <button id="exportPreset" type="button">导出</button>
         </header>
         <div class="debug-grid" id="debugControls"></div>
@@ -148,6 +147,6 @@
       </section>
     </main>
 
-    <script src="./src/main.js?v=idle-mouth-slight-open-2"></script>
+    <script src="./src/main.js?v=mouth-drag-main-2"></script>
   </body>
 </html>

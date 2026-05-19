@@ -1,14 +1,14 @@
 /**
- * 拽舌头解压玩具 - 核心 runtime
+ * 拽脸解压玩具 - 核心 runtime
  *
  * 设计依据：
  *   docs/pull-tongue-relaxation-game-requirements.md (v0.1)
  *   docs/visual-to-program-development-workflow.md  (v0.1)
  *
  * 原则：
- *   - 默认画面只剩大脸 + 舌头，HUD/挑战/表情墙全部下掉。
+ *   - 默认画面聚焦大脸 + 嘴巴拉扯，HUD 保持轻量。
  *   - 所有手感参数集中在 `config` 中（PartConfig），debug 面板可调，可导出 JSON。
- *   - 舌头使用 mouthAnchor + controlA + controlB + tongueTip 四点 Bezier 模型。
+ *   - 舌头模型保留为待机嘴内细节，不再作为默认拖拽目标。
  *   - 状态机：Idle → Grabbed → Stretching → Overstretch → ReleaseSnap → Settle → Idle。
  *   - 反馈分层：表情、文字、粒子，按 pull 阈值触发，冷却去重避免刷屏。
  */
@@ -34,9 +34,10 @@ const ASSET_FILES = {
 };
 
 const IS_FILE_PREVIEW = window.location.protocol === 'file:';
+const ENABLE_TONGUE_DRAG = false;
 
 // ---------------------------------------------------------------------------
-// PartConfig - 第一阶段的舌头部位配置（对应需求文档 §6 / §11）
+// PartConfig - 嘴巴拉扯与软体反馈配置。
 // 所有审美/手感参数集中在这里，debug 面板和导出 preset 都基于它。
 // ---------------------------------------------------------------------------
 
@@ -99,9 +100,9 @@ const DEFAULT_CONFIG = {
   noseGrabRadius: 34,
   noseSoftMaxLength: 72,
   noseHardMaxLength: 118,
-  mouthCornerGrabRadius: 32,
-  mouthCornerSoftMaxLength: 78,
-  mouthCornerHardMaxLength: 126,
+  mouthCornerGrabRadius: 46,
+  mouthCornerSoftMaxLength: 92,
+  mouthCornerHardMaxLength: 146,
   earGrabRadius: 42,
   earSoftMaxLength: 86,
   earHardMaxLength: 138,
@@ -153,15 +154,15 @@ const DEBUG_FIELDS = [
   { key: 'settleDuration', label: '余震时长', min: 0.05, max: 1, step: 0.01 },
   { key: 'faceOffsetAmount', label: '头部偏移', min: 0, max: 24, step: 0.5 },
   { key: 'eyeLookAmount', label: '眼神追踪', min: 0, max: 16, step: 0.5 },
-  { key: 'mouthDeformAmount', label: '嘴角拉扯', min: 0, max: 24, step: 0.5 },
+  { key: 'mouthDeformAmount', label: '嘴巴拉扯', min: 0, max: 24, step: 0.5 },
   { key: 'eyebrowLiftAmount', label: '眉毛抬起', min: 0, max: 16, step: 0.5 },
   { key: 'cheekGrabRadius', label: '脸颊命中', min: 24, max: 80, step: 1 },
   { key: 'cheekSoftMaxLength', label: '脸颊软上限', min: 40, max: 180, step: 2 },
   { key: 'cheekReleaseSpring', label: '脸颊回弹', min: 80, max: 1600, step: 20 },
   { key: 'noseGrabRadius', label: '鼻子命中', min: 18, max: 64, step: 1 },
   { key: 'noseSoftMaxLength', label: '鼻子软上限', min: 28, max: 130, step: 2 },
-  { key: 'mouthCornerGrabRadius', label: '嘴角命中', min: 18, max: 60, step: 1 },
-  { key: 'mouthCornerSoftMaxLength', label: '嘴角软上限', min: 30, max: 140, step: 2 },
+  { key: 'mouthCornerGrabRadius', label: '嘴巴命中', min: 18, max: 72, step: 1 },
+  { key: 'mouthCornerSoftMaxLength', label: '嘴巴软上限', min: 30, max: 160, step: 2 },
   { key: 'earGrabRadius', label: '耳朵命中', min: 20, max: 78, step: 1 },
   { key: 'hairGrabRadius', label: '头发命中', min: 24, max: 88, step: 1 },
   { key: 'facePartReleaseSpring', label: '五官回弹', min: 80, max: 1600, step: 20 },
@@ -187,9 +188,9 @@ const SPEECH_POOL = {
   noseMid: ['鼻子要变长了！', '这不是把手。', '轻一点轻一点。'],
   noseStrong: ['鼻子快飞了！', '要弹了！', '鼻梁撑住！'],
   noseRelease: ['啵！', '鼻子回位。', '弹回来了。'],
-  mouthGrab: ['嘴角？', '别扯嘴！', '笑不出来了。'],
+  mouthGrab: ['嘴巴？', '别扯嘴！', '笑不出来了。'],
   mouthMid: ['嘴要歪了！', '这表情合理吗？', '有点离谱。'],
-  mouthStrong: ['嘴角撑住！', '要裂开了！', '快松手！'],
+  mouthStrong: ['嘴巴撑住！', '要裂开了！', '快松手！'],
   mouthRelease: ['啪！', '嘴回来了。', '表情复原。'],
   earGrab: ['耳朵也拽？', '听见了听见了！', '别拉耳朵。'],
   earMid: ['耳朵要变大了！', '耳朵在报警。', '有点痒！'],
@@ -510,7 +511,7 @@ const state = {
     hat: false,
     sparkle: false
   },
-  uiPartHint: 'tongue',
+  uiPartHint: 'mouth',
   uiSignature: '',
   sessionSignature: '',
 
@@ -537,19 +538,19 @@ const DECOR_OPTIONS = [
 ];
 
 const QUEST_DECK = [
-  { key: 'tongue3', part: 'tongue', label: '舌头三连弹', target: 3, minPull: 0.34, reward: 180 },
+  { key: 'mouth3', part: 'mouth', label: '嘴巴三连拽', target: 3, minPull: 0.18, reward: 190 },
   { key: 'cheek2', part: 'cheek', label: '脸颊左右拽', target: 2, minPull: 0.32, reward: 150 },
   { key: 'nose1', part: 'nose', label: '鼻尖拉到位', target: 1, minPull: 0.52, reward: 130 },
-  { key: 'mouth2', part: 'mouth', label: '嘴角变形秀', target: 2, minPull: 0.38, reward: 160 },
+  { key: 'mouthWide', part: 'mouth', label: '嘴巴变形秀', target: 2, minPull: 0.32, reward: 170 },
   { key: 'ear2', part: 'ear', label: '耳朵弹回来', target: 2, minPull: 0.36, reward: 145 },
   { key: 'hair1', part: 'hair', label: '头发飞起来', target: 1, minPull: 0.46, reward: 120 }
 ];
 
 const PART_SCORE_MULTIPLIER = {
-  tongue: 1.18,
+  tongue: 1,
   cheek: 1,
   nose: 0.95,
-  mouth: 1.06,
+  mouth: 1.18,
   ear: 0.98,
   hair: 0.96
 };
@@ -750,16 +751,17 @@ function recordRelease(partKey, power, x, y) {
 }
 
 function partKeyForUi(part) {
-  if (!part) return state.uiPartHint || 'tongue';
+  if (!part) return state.uiPartHint || 'mouth';
   if (part.type === 'tongue') return 'tongue';
   if (part.type === 'cheek') return 'cheek';
   if (part.type === 'facePart') {
     if (part.key === 'nose') return 'nose';
     if (part.key === 'hairTop') return 'hair';
     if (part.key === 'earLeft' || part.key === 'earRight') return 'ear';
+    if (isMouthPartKey(part.key)) return 'mouth';
     return 'mouth';
   }
-  return state.uiPartHint || 'tongue';
+  return state.uiPartHint || 'mouth';
 }
 
 function partLabelForUi(part) {
@@ -770,10 +772,10 @@ function partLabelForUi(part) {
 function partLabelFromTabKey(key) {
   if (key === 'cheek') return '脸颊';
   if (key === 'nose') return '鼻子';
-  if (key === 'mouth') return '嘴角';
+  if (key === 'mouth') return '嘴巴';
   if (key === 'ear') return '耳朵';
   if (key === 'hair') return '头发';
-  return '舌头';
+  return '嘴巴';
 }
 
 function moodForUi(pull) {
@@ -814,8 +816,8 @@ function updateInteractionHud() {
   const isHolding = Boolean(state.activePart) && state.pointer.active && holdingPhase;
   const displayPercent = isHolding ? pullPercent : Math.round(state.satisfaction);
 
-  let title = activeKey === 'tongue' ? '拽舌头' : `试试${label}`;
-  let detail = activeKey === 'tongue' ? '拉长，松手，回弹' : `${label}也会软软弹回`;
+  let title = activeKey === 'mouth' ? '拽嘴巴' : `试试${label}`;
+  let detail = activeKey === 'mouth' ? '点住嘴巴，往外拽，松手回弹' : `${label}也会软软弹回`;
   if (isHolding) {
     title = `正在拽${label}`;
     detail = pullPercent > 0
@@ -1103,7 +1105,7 @@ function facePartBase(key, pose = computeFacePose()) {
   if (key === 'hairTop') {
     return { x: pose.cx - pose.r * 0.04, y: pose.cy - pose.r * 0.78, r: pose.r, side: 0 };
   }
-  const side = key === 'mouthLeft' ? -1 : 1;
+  const side = isMouthPartKey(key) && key === 'mouthLeft' ? -1 : 1;
   return {
     x: pose.cx + side * pose.r * 0.25,
     y: pose.cy + pose.r * 0.34,
@@ -1166,6 +1168,10 @@ function facePartSpeechPrefix(key) {
   if (key === 'earLeft' || key === 'earRight') return 'ear';
   if (key === 'hairTop') return 'hair';
   return 'mouth';
+}
+
+function isMouthPartKey(key) {
+  return key === 'mouthLeft' || key === 'mouthRight';
 }
 
 function tongueRewardPoint() {
@@ -1283,15 +1289,22 @@ function setPhase(next) {
     const part = activeFacePart();
     const prefix = facePartSpeechPrefix(state.activePart?.key);
     const power = part ? part.maxPull : 0.35;
+    const partKey = partKeyForUi(state.activePart);
+    const mouthPrimary = partKey === 'mouth';
     sayFromPool(`${prefix}Release`);
-    playReleaseSfx(power * 0.82);
+    playReleaseSfx(power * (mouthPrimary ? 0.96 : 0.82));
     pulseHaptics('release', power);
     state.releasePunch.age = 0;
-    state.releasePunch.power = clamp(power * 0.72, 0.14, 0.86);
+    state.releasePunch.power = clamp(power * (mouthPrimary ? 0.86 : 0.72), 0.14, mouthPrimary ? 0.96 : 0.86);
     spawnFacePartReleaseBurst();
     const point = facePartRewardPoint();
-    addSatisfaction(3 + power * 8, point.x, point.y, '整活');
-    recordRelease(partKeyForUi(state.activePart), power, point.x, point.y);
+    addSatisfaction(
+      mouthPrimary ? 6 + power * 13 : 3 + power * 8,
+      point.x,
+      point.y,
+      mouthPrimary ? '爽感' : '整活'
+    );
+    recordRelease(partKey, power, point.x, point.y);
   }
   if (next === 'FacePartSettle') {
     const part = activeFacePart();
@@ -1371,8 +1384,40 @@ function hitCheek(point) {
   return best;
 }
 
+function hitMouthArea(point, pose = computeFacePose()) {
+  const leftBase = facePartBase('mouthLeft', pose);
+  const rightBase = facePartBase('mouthRight', pose);
+  const left = state.faceParts.mouthLeft;
+  const right = state.faceParts.mouthRight;
+  const leftX = leftBase.x + left.x;
+  const leftY = leftBase.y + left.y;
+  const rightX = rightBase.x + right.x;
+  const rightY = rightBase.y + right.y;
+  const centerX = (leftX + rightX) * 0.5;
+  const centerY = (leftY + rightY) * 0.5;
+  const isTouch = state.pointer.kind === 'touch' || state.pointer.kind === 'pen';
+  const halfW = Math.max(pose.r * 0.32, Math.abs(rightX - leftX) * 0.64);
+  const halfH = pose.r * (isTouch ? 0.135 : 0.1);
+  const nx = (point.x - centerX) / Math.max(1, halfW);
+  const ny = (point.y - centerY) / Math.max(1, halfH);
+  if (nx * nx + ny * ny > 1) return { hit: false };
+
+  const key = point.x < centerX ? 'mouthLeft' : 'mouthRight';
+  const handleX = key === 'mouthLeft' ? leftX : rightX;
+  const handleY = key === 'mouthLeft' ? leftY : rightY;
+  return {
+    hit: true,
+    dist: length(point.x - handleX, point.y - handleY),
+    key,
+    mouthArea: true
+  };
+}
+
 function hitFacePart(point) {
   const pose = computeFacePose();
+  const mouthHit = hitMouthArea(point, pose);
+  if (mouthHit.hit) return mouthHit;
+
   let best = { hit: false, dist: Infinity, key: null };
   Object.keys(state.faceParts).forEach((key) => {
     const base = facePartBase(key, pose);
@@ -1396,12 +1441,6 @@ function updateHoverPart(point) {
     return;
   }
 
-  const tongueHit = hitTongue(point);
-  if (tongueHit.hit) {
-    state.hoverPart = { type: 'tongue', side: 0 };
-    return;
-  }
-
   const facePartHit = hitFacePart(point);
   if (facePartHit.hit) {
     state.hoverPart = { type: 'facePart', key: facePartHit.key };
@@ -1414,6 +1453,14 @@ function updateHoverPart(point) {
     return;
   }
 
+  if (ENABLE_TONGUE_DRAG) {
+    const tongueHit = hitTongue(point);
+    if (tongueHit.hit) {
+      state.hoverPart = { type: 'tongue', side: 0 };
+      return;
+    }
+  }
+
   state.hoverPart = null;
 }
 
@@ -1422,33 +1469,6 @@ function onPointerDown(event) {
   const point = pointerToCanvas(event);
   state.pointer = { x: point.x, y: point.y, active: true, kind: event.pointerType || 'mouse' };
   state.hoverPart = null;
-
-  const result = hitTongue(point);
-  if (result.hit) {
-    state.activePart = { type: 'tongue', side: 0 };
-
-    // 抓握偏移：如果点中舌身，把抓点稍微滑向舌尖 40%（§8）
-    if (result.snapToTip) {
-      state.dragOffset.x = 0;
-      state.dragOffset.y = 0;
-    } else {
-      const anchor = currentRenderAnchor();
-      const tipX = anchor.x + state.tip.x;
-      const tipY = anchor.y + state.tip.y;
-      const slideT = 0.4; // 从命中点向 tip 方向滑 40%
-      const grabX = lerp(point.x, tipX, slideT);
-      const grabY = lerp(point.y, tipY, slideT);
-      state.dragOffset.x = tipX - grabX;
-      state.dragOffset.y = tipY - grabY;
-    }
-
-    setPhase('Grabbed');
-    canvas.classList.add('dragging');
-    canvas.setPointerCapture(event.pointerId);
-    hideGestureHint();
-    updateDragTarget(point);
-    return;
-  }
 
   const facePartHit = hitFacePart(point);
   if (facePartHit.hit) {
@@ -1466,18 +1486,50 @@ function onPointerDown(event) {
   }
 
   const cheekHit = hitCheek(point);
-  if (!cheekHit.hit) return;
+  if (cheekHit.hit) {
+    const cheek = state.cheeks[cheekKey(cheekHit.side)];
+    const base = cheekBase(cheekHit.side);
+    state.activePart = { type: 'cheek', side: cheekHit.side };
+    state.cheekDragOffset.x = base.x + cheek.x - point.x;
+    state.cheekDragOffset.y = base.y + cheek.y - point.y;
+    setPhase('CheekGrabbed');
+    canvas.classList.add('dragging');
+    canvas.setPointerCapture(event.pointerId);
+    hideGestureHint();
+    updateCheekTarget(point);
+    return;
+  }
 
-  const cheek = state.cheeks[cheekKey(cheekHit.side)];
-  const base = cheekBase(cheekHit.side);
-  state.activePart = { type: 'cheek', side: cheekHit.side };
-  state.cheekDragOffset.x = base.x + cheek.x - point.x;
-  state.cheekDragOffset.y = base.y + cheek.y - point.y;
-  setPhase('CheekGrabbed');
-  canvas.classList.add('dragging');
-  canvas.setPointerCapture(event.pointerId);
-  hideGestureHint();
-  updateCheekTarget(point);
+  if (ENABLE_TONGUE_DRAG) {
+    const result = hitTongue(point);
+    if (result.hit) {
+      state.activePart = { type: 'tongue', side: 0 };
+
+      // 抓握偏移：如果点中舌身，把抓点稍微滑向舌尖 40%（§8）
+      if (result.snapToTip) {
+        state.dragOffset.x = 0;
+        state.dragOffset.y = 0;
+      } else {
+        const anchor = currentRenderAnchor();
+        const tipX = anchor.x + state.tip.x;
+        const tipY = anchor.y + state.tip.y;
+        const slideT = 0.4; // 从命中点向 tip 方向滑 40%
+        const grabX = lerp(point.x, tipX, slideT);
+        const grabY = lerp(point.y, tipY, slideT);
+        state.dragOffset.x = tipX - grabX;
+        state.dragOffset.y = tipY - grabY;
+      }
+
+      setPhase('Grabbed');
+      canvas.classList.add('dragging');
+      canvas.setPointerCapture(event.pointerId);
+      hideGestureHint();
+      updateDragTarget(point);
+      return;
+    }
+  }
+
+  state.pointer.active = false;
 }
 
 function onPointerMove(event) {
@@ -2785,7 +2837,7 @@ function drawEyebrows(cx, cy, r) {
 
 function mouthMetrics(cx, cy, r) {
   const mouthY = cy + r * 0.335;
-  // 嘴角朝舌尖方向拉
+  // 嘴巴朝当前主拉扯方向变形。
   const vector = getExpressionVector();
   const dirLen = length(vector.x, vector.y) || 1;
   const pullX = (vector.x / dirLen) * vector.pull * config.mouthDeformAmount;
@@ -3065,17 +3117,9 @@ function drawMouthForeground(cx, cy, r) {
     || state.activePart?.key === 'mouthRight'
     || cornerPull > 0.035;
 
-  if (state.activePart?.type === 'tongue') {
-    drawCleanMouthForeground(cx, mouthY, r, open, pullX, cornerCenterX, cornerCenterY, tongueMode);
-    return;
-  }
+  drawCleanMouthForeground(cx, mouthY, r, open, pullX, cornerCenterX, cornerCenterY, tongueMode);
+  if (!mouthCornerActive) return;
 
-  if (!mouthCornerActive) {
-    drawCleanMouthForeground(cx, mouthY, r, open, pullX, cornerCenterX, cornerCenterY, tongueMode);
-    return;
-  }
-
-  // 嘴角交互只保留局部提示，不再画整条嘴唇线，避免和舌头拉伸混在一起。
   ctx.save();
   drawMouthCornerHints(cx, cy, r);
   ctx.restore();
@@ -4070,15 +4114,15 @@ function exportPreset() {
     schemaVersion: 1,
     exportedAt: new Date().toISOString(),
     authorRole: 'visual_or_motion',
-    targetBuild: 'tongue-prototype-v1',
-    partId: 'tongue_main',
+    targetBuild: 'mouth-drag-main-v1',
+    partId: 'mouth_main',
     config
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `tongue-preset-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.json`;
+  a.download = `mouth-preset-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.json`;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -4204,21 +4248,21 @@ function resetPose(options = {}) {
 }
 
 function handlePartTabClick(event) {
-  const key = event.currentTarget.dataset.partTab || 'tongue';
+  const key = event.currentTarget.dataset.partTab || 'mouth';
   state.uiPartHint = key;
   updatePartTabs(key);
   const label = partLabelFromTabKey(key);
   const copy = key === 'cheek'
     ? '点脸颊两侧，往外拉会有果冻脸反馈'
     : key === 'mouth'
-      ? '点嘴角往外扯，表情会跟着变形'
+      ? '点住嘴巴往外拽，嘴唇和表情会一起变形'
       : key === 'ear'
         ? '点耳朵边缘往外拽，松手会弹回来'
         : key === 'hair'
           ? '点头发往上提，会有软软的拉伸'
           : key === 'nose'
             ? '点小鼻子往外拉，别太用力'
-            : '点嘴里的小舌头往外拽，这是主爽感';
+            : '点住嘴巴往外拽，这是主爽感';
   if (interactionTitleEl) interactionTitleEl.textContent = `试试拽${label}`;
   if (interactionDetailEl) interactionDetailEl.textContent = copy;
   showSpeech(copy);
