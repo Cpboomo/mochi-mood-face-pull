@@ -3811,7 +3811,8 @@ function drawTongueSurfaceDetails(points, pull) {
 }
 
 function drawIdleTongueNub(ax, ay) {
-  // 待机舌头必须看起来是从嘴里伸出来的，而不是贴在嘴外的小胶囊。
+  // 待机状态先把舌头收进嘴里，避免嘴巴主玩法看起来又变成拽舌头。
+  if (state.phase === 'Idle' && !state.activePart) return;
   const tucked = state.phase !== 'Idle';
   const now = state.frameTime || performance.now();
   const idleT = state.idleTimer;
