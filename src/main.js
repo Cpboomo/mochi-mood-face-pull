@@ -3281,8 +3281,17 @@ function drawTongueOver() {
 function drawTongueShape({ shadow }) {
   const anchorX = state.renderMouthAnchor.x;
   const anchorY = state.renderMouthAnchor.y;
-  const dx = state.tip.x;
-  const dy = state.tip.y;
+  var dx = state.tip.x;
+  var dy = state.tip.y;
+  // 拽嘴巴时，舌头跟着联动
+  var mouthActive = state.activePart?.key === 'mouthLeft' || state.activePart?.key === 'mouthRight';
+  if (mouthActive || state.faceParts.mouthLeft.pull > 0.03 || state.faceParts.mouthRight.pull > 0.03) {
+    var mLeft = state.faceParts.mouthLeft, mRight = state.faceParts.mouthRight;
+    var mouthShiftX = (mLeft.x + mRight.x) * 0.25;
+    var mouthShiftY = (mLeft.y + mRight.y) * 0.25;
+    dx += mouthShiftX;
+    dy += mouthShiftY;
+  }
   const len = length(dx, dy);
   if (!shouldDrawFullTongue(len)) {
     if (shadow) return;
