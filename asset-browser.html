@@ -1,0 +1,1179 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#fff5ed" />
+    <meta http-equiv="Cache-Control" content="no-store" />
+    <title>Mochi Mood · 游览模式</title>
+    <link rel="icon" href="data:," />
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #3e2638;
+        --muted: #7c6470;
+        --paper: #fff8f0;
+        --panel: rgba(255, 255, 255, 0.82);
+        --panel-strong: rgba(255, 252, 247, 0.96);
+        --line: rgba(91, 61, 74, 0.14);
+        --rose: #f8759a;
+        --coral: #ffad73;
+        --mint: #58bcae;
+        --sky: #75bfe9;
+        --violet: #9b86d9;
+        --shadow: rgba(101, 57, 82, 0.16);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        min-height: 100%;
+        margin: 0;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at 18% 12%, rgba(117, 191, 233, 0.22), transparent 30%),
+          radial-gradient(circle at 85% 18%, rgba(248, 117, 154, 0.18), transparent 28%),
+          linear-gradient(145deg, #fffaf4 0%, #fff0ea 44%, #edf8f6 100%);
+      }
+
+      body {
+        overflow-x: hidden;
+      }
+
+      button,
+      input {
+        font: inherit;
+      }
+
+      button,
+      a {
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      .browser-shell {
+        display: grid;
+        grid-template-rows: auto 1fr;
+        min-height: 100vh;
+        min-height: 100dvh;
+      }
+
+      .topbar {
+        position: sticky;
+        z-index: 10;
+        top: 0;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 18px;
+        align-items: center;
+        padding: 18px clamp(16px, 3vw, 34px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.74);
+        background: rgba(255, 249, 241, 0.82);
+        box-shadow: 0 12px 34px rgba(101, 57, 82, 0.08);
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+      }
+
+      .brand {
+        display: grid;
+        gap: 7px;
+        min-width: 0;
+      }
+
+      .brand h1 {
+        margin: 0;
+        font-size: clamp(24px, 3.2vw, 42px);
+        line-height: 1;
+        letter-spacing: 0;
+      }
+
+      .brand p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+        font-weight: 800;
+      }
+
+      .top-actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 9px;
+      }
+
+      .top-actions a,
+      .mode-tabs button,
+      .scale-tabs button,
+      .control-button,
+      .part-button,
+      .sequence-button,
+      .thumb-button {
+        border: 1px solid var(--line);
+        color: inherit;
+        background: var(--panel);
+        box-shadow: 0 10px 24px rgba(101, 57, 82, 0.1);
+        cursor: pointer;
+        text-decoration: none;
+        transition: transform 140ms ease, border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
+      }
+
+      .top-actions a:hover,
+      .top-actions a:focus-visible,
+      .mode-tabs button:hover,
+      .mode-tabs button:focus-visible,
+      .scale-tabs button:hover,
+      .scale-tabs button:focus-visible,
+      .control-button:hover,
+      .control-button:focus-visible,
+      .part-button:hover,
+      .part-button:focus-visible,
+      .sequence-button:hover,
+      .sequence-button:focus-visible,
+      .thumb-button:hover,
+      .thumb-button:focus-visible {
+        transform: translateY(-1px);
+        border-color: rgba(248, 117, 154, 0.44);
+        outline: 3px solid rgba(248, 117, 154, 0.2);
+      }
+
+      .top-actions a {
+        display: inline-flex;
+        min-height: 40px;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        padding: 0 14px;
+        font-size: 13px;
+        font-weight: 950;
+      }
+
+      .workspace {
+        display: grid;
+        grid-template-columns: minmax(230px, 285px) minmax(0, 1fr) minmax(245px, 310px);
+        gap: 18px;
+        align-items: stretch;
+        padding: 18px clamp(16px, 3vw, 34px) 26px;
+      }
+
+      .side-panel,
+      .preview-panel,
+      .inspector-panel {
+        min-width: 0;
+        border: 1px solid rgba(255, 255, 255, 0.82);
+        border-radius: 22px;
+        background: linear-gradient(145deg, rgba(255, 255, 255, 0.82), rgba(255, 248, 242, 0.62));
+        box-shadow:
+          0 22px 70px rgba(101, 57, 82, 0.13),
+          inset 0 1px 0 rgba(255, 255, 255, 0.86);
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+      }
+
+      .side-panel,
+      .inspector-panel {
+        display: grid;
+        align-content: start;
+        gap: 18px;
+        padding: 16px;
+      }
+
+      .panel-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .panel-title h2,
+      .detail-block h3 {
+        margin: 0;
+        font-size: 15px;
+        letter-spacing: 0;
+      }
+
+      .count-pill {
+        display: inline-flex;
+        min-width: 34px;
+        height: 25px;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        background: rgba(117, 191, 233, 0.2);
+        color: #346b86;
+        font-size: 12px;
+        font-weight: 950;
+      }
+
+      .mode-tabs,
+      .scale-tabs {
+        display: grid;
+        gap: 8px;
+      }
+
+      .mode-tabs {
+        grid-template-columns: 1fr;
+      }
+
+      .scale-tabs {
+        grid-template-columns: repeat(3, 1fr);
+      }
+
+      .mode-tabs button,
+      .scale-tabs button,
+      .control-button,
+      .sequence-button {
+        min-height: 40px;
+        border-radius: 14px;
+        font-weight: 950;
+      }
+
+      .mode-tabs button.active,
+      .scale-tabs button.active,
+      .part-button.active,
+      .sequence-button.active,
+      .thumb-button.active {
+        border-color: rgba(248, 117, 154, 0.42);
+        background: linear-gradient(135deg, rgba(248, 117, 154, 0.2), rgba(117, 191, 233, 0.18));
+        box-shadow:
+          0 14px 28px rgba(101, 57, 82, 0.12),
+          inset 0 1px 0 rgba(255, 255, 255, 0.82);
+      }
+
+      .part-list,
+      .sequence-list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .part-button {
+        display: grid;
+        grid-template-columns: 28px minmax(0, 1fr) auto;
+        gap: 9px;
+        align-items: center;
+        min-height: 42px;
+        border-radius: 14px;
+        padding: 8px 10px;
+        text-align: left;
+      }
+
+      .part-button img {
+        width: 28px;
+        height: 28px;
+        object-fit: contain;
+      }
+
+      .part-button span,
+      .sequence-button span {
+        overflow: hidden;
+        font-size: 13px;
+        font-weight: 950;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .part-button small,
+      .sequence-button small {
+        color: rgba(62, 38, 56, 0.48);
+        font-size: 11px;
+        font-weight: 900;
+      }
+
+      .sequence-button {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 0 12px;
+      }
+
+      .preview-panel {
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        min-height: 660px;
+        overflow: hidden;
+      }
+
+      .preview-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 16px 18px;
+        border-bottom: 1px solid rgba(91, 61, 74, 0.1);
+      }
+
+      .preview-head h2 {
+        margin: 0;
+        font-size: 18px;
+      }
+
+      .preview-head p {
+        margin: 5px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      .preview-stage {
+        position: relative;
+        display: grid;
+        min-height: 0;
+        place-items: center;
+        padding: clamp(18px, 3vw, 34px);
+      }
+
+      .board {
+        position: relative;
+        width: min(72vh, 100%, 620px);
+        aspect-ratio: 1;
+        overflow: hidden;
+        border: 1px solid rgba(91, 61, 74, 0.12);
+        border-radius: 24px;
+        background:
+          linear-gradient(90deg, rgba(91, 61, 74, 0.05) 1px, transparent 1px),
+          linear-gradient(180deg, rgba(91, 61, 74, 0.05) 1px, transparent 1px),
+          linear-gradient(145deg, rgba(255, 255, 255, 0.82), rgba(244, 250, 249, 0.7));
+        background-size: 32px 32px, 32px 32px, auto;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92);
+      }
+
+      .board::before,
+      .board::after {
+        content: "";
+        position: absolute;
+        z-index: 1;
+        pointer-events: none;
+        background: rgba(52, 107, 134, 0.34);
+      }
+
+      .board::before {
+        left: 50%;
+        top: 14%;
+        bottom: 14%;
+        width: 2px;
+        transform: translateX(-50%);
+      }
+
+      .board::after {
+        top: 50%;
+        left: 14%;
+        right: 14%;
+        height: 2px;
+        transform: translateY(-50%);
+      }
+
+      .layer-stack,
+      .sequence-stage,
+      .single-stage {
+        position: absolute;
+        inset: 0;
+      }
+
+      .layer-stack img,
+      .single-stage img,
+      .sequence-stage img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        pointer-events: none;
+        user-select: none;
+      }
+
+      .layer-stack img.dimmed {
+        opacity: 0.28;
+      }
+
+      .layer-stack img.focus-layer,
+      .single-stage img {
+        filter: drop-shadow(0 12px 18px rgba(248, 117, 154, 0.22));
+      }
+
+      .origin-dot {
+        position: absolute;
+        z-index: 3;
+        left: 50%;
+        top: 50%;
+        width: 12px;
+        height: 12px;
+        border: 2px solid #fff;
+        border-radius: 50%;
+        background: #347fa5;
+        box-shadow: 0 3px 10px rgba(52, 107, 134, 0.32);
+        transform: translate(-50%, -50%);
+      }
+
+      .mode-surface {
+        display: none;
+      }
+
+      .mode-surface.active {
+        display: block;
+      }
+
+      .sequence-stage img {
+        image-rendering: auto;
+      }
+
+      .preview-footer {
+        display: grid;
+        gap: 12px;
+        padding: 16px 18px 18px;
+        border-top: 1px solid rgba(91, 61, 74, 0.1);
+      }
+
+      .sequence-controls,
+      .frame-strip {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .sequence-controls {
+        justify-content: space-between;
+      }
+
+      .play-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .control-button {
+        display: inline-flex;
+        min-width: 42px;
+        align-items: center;
+        justify-content: center;
+        padding: 0 12px;
+      }
+
+      .frame-slider {
+        display: grid;
+        grid-template-columns: minmax(130px, 1fr) 68px;
+        gap: 10px;
+        align-items: center;
+        min-width: min(100%, 330px);
+      }
+
+      .frame-slider input {
+        width: 100%;
+        accent-color: var(--rose);
+      }
+
+      .frame-slider span {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 950;
+        text-align: right;
+      }
+
+      .thumb-button {
+        display: grid;
+        width: 56px;
+        height: 56px;
+        place-items: center;
+        overflow: hidden;
+        border-radius: 14px;
+        padding: 0;
+      }
+
+      .thumb-button img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .detail-block {
+        display: grid;
+        gap: 9px;
+      }
+
+      .detail-list {
+        display: grid;
+        gap: 7px;
+        margin: 0;
+      }
+
+      .detail-list div {
+        display: grid;
+        grid-template-columns: 86px minmax(0, 1fr);
+        gap: 9px;
+        align-items: start;
+        min-height: 26px;
+        border-bottom: 1px solid rgba(91, 61, 74, 0.08);
+        padding-bottom: 7px;
+      }
+
+      .detail-list dt,
+      .detail-list dd {
+        margin: 0;
+        min-width: 0;
+        font-size: 12px;
+        font-weight: 900;
+      }
+
+      .detail-list dt {
+        color: rgba(62, 38, 56, 0.48);
+      }
+
+      .detail-list dd {
+        color: var(--ink);
+        overflow-wrap: anywhere;
+      }
+
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+      }
+
+      .chips span {
+        display: inline-flex;
+        min-height: 27px;
+        align-items: center;
+        border-radius: 999px;
+        padding: 0 10px;
+        background: rgba(88, 188, 174, 0.14);
+        color: #2d7068;
+        font-size: 12px;
+        font-weight: 950;
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      @media (max-width: 1120px) {
+        .workspace {
+          grid-template-columns: minmax(220px, 285px) minmax(0, 1fr);
+        }
+
+        .inspector-panel {
+          grid-column: 1 / -1;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 780px) {
+        .topbar {
+          grid-template-columns: 1fr;
+        }
+
+        .top-actions {
+          justify-content: flex-start;
+        }
+
+        .workspace {
+          grid-template-columns: 1fr;
+        }
+
+        .preview-panel {
+          min-height: auto;
+        }
+
+        .board {
+          width: min(100%, 520px);
+        }
+
+        .inspector-panel {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 520px) {
+        .topbar,
+        .workspace {
+          padding-left: 12px;
+          padding-right: 12px;
+        }
+
+        .side-panel,
+        .inspector-panel,
+        .preview-panel {
+          border-radius: 18px;
+        }
+
+        .preview-head,
+        .preview-footer {
+          padding-left: 14px;
+          padding-right: 14px;
+        }
+
+        .mode-tabs {
+          grid-template-columns: 1fr;
+        }
+
+        .frame-slider {
+          grid-template-columns: 1fr;
+        }
+
+        .frame-slider span {
+          text-align: left;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="browser-shell" aria-label="Mochi Mood 游览模式">
+      <header class="topbar">
+        <div class="brand">
+          <h1>Mochi Mood 游览模式</h1>
+          <p>mochiA · 分层 SVG / 序列帧 / 锚点预览</p>
+        </div>
+        <nav class="top-actions" aria-label="页面入口">
+          <a href="./index.html">返回玩具</a>
+          <a href="./assets/export_sample/readme_export.md">导出说明</a>
+        </nav>
+      </header>
+
+      <div class="workspace">
+        <aside class="side-panel" aria-label="素材选择">
+          <section>
+            <div class="panel-title">
+              <h2>模式</h2>
+              <span class="count-pill">3</span>
+            </div>
+            <div class="mode-tabs" id="modeTabs" role="tablist" aria-label="游览模式">
+              <button class="active" type="button" data-mode="composite">组合预览</button>
+              <button type="button" data-mode="parts">SVG 部件</button>
+              <button type="button" data-mode="sequence">序列帧</button>
+            </div>
+          </section>
+
+          <section>
+            <div class="panel-title">
+              <h2>倍率</h2>
+              <span class="count-pill">3</span>
+            </div>
+            <div class="scale-tabs" id="scaleTabs" aria-label="PNG 倍率">
+              <button class="active" type="button" data-scale="@1x">@1x</button>
+              <button type="button" data-scale="@2x">@2x</button>
+              <button type="button" data-scale="@3x">@3x</button>
+            </div>
+          </section>
+
+          <section>
+            <div class="panel-title">
+              <h2>SVG 部件</h2>
+              <span class="count-pill" id="partCount">0</span>
+            </div>
+            <div class="part-list" id="partList"></div>
+          </section>
+
+          <section>
+            <div class="panel-title">
+              <h2>序列</h2>
+              <span class="count-pill" id="sequenceCount">0</span>
+            </div>
+            <div class="sequence-list" id="sequenceList"></div>
+          </section>
+        </aside>
+
+        <section class="preview-panel" aria-label="素材预览">
+          <header class="preview-head">
+            <div>
+              <h2 id="previewTitle">组合预览</h2>
+              <p id="previewSubtitle">所有部件共用 512x512 坐标系，蓝点是中心锚点。</p>
+            </div>
+            <div class="chips" aria-label="当前状态">
+              <span id="activeScaleChip">@1x</span>
+              <span id="activeFrameChip">frame 000</span>
+            </div>
+          </header>
+
+          <div class="preview-stage">
+            <div class="board">
+              <div id="compositeSurface" class="mode-surface active">
+                <div class="layer-stack" id="layerStack"></div>
+              </div>
+              <div id="partsSurface" class="mode-surface">
+                <div class="single-stage" id="singleStage"></div>
+              </div>
+              <div id="sequenceSurface" class="mode-surface">
+                <div class="sequence-stage">
+                  <img id="sequenceImage" alt="序列帧预览" />
+                </div>
+              </div>
+              <i class="origin-dot" aria-hidden="true"></i>
+            </div>
+          </div>
+
+          <footer class="preview-footer">
+            <div class="sequence-controls">
+              <div class="play-group">
+                <button class="control-button" type="button" id="prevFrame" aria-label="上一帧">‹</button>
+                <button class="control-button" type="button" id="playToggle">暂停</button>
+                <button class="control-button" type="button" id="nextFrame" aria-label="下一帧">›</button>
+              </div>
+              <label class="frame-slider">
+                <input id="frameSlider" type="range" min="0" max="7" step="1" value="0" />
+                <span id="frameText">000 / 007</span>
+              </label>
+            </div>
+            <div class="frame-strip" id="frameStrip" aria-label="帧缩略图"></div>
+          </footer>
+        </section>
+
+        <aside class="inspector-panel" aria-label="当前素材信息">
+          <section class="detail-block">
+            <h3>当前项</h3>
+            <dl class="detail-list">
+              <div>
+                <dt>名称</dt>
+                <dd id="detailName">-</dd>
+              </div>
+              <div>
+                <dt>路径</dt>
+                <dd id="detailPath">-</dd>
+              </div>
+              <div>
+                <dt>节点</dt>
+                <dd id="detailNode">-</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section class="detail-block">
+            <h3>导出基线</h3>
+            <dl class="detail-list">
+              <div>
+                <dt>画布</dt>
+                <dd>512 / 1024 / 1536</dd>
+              </div>
+              <div>
+                <dt>锚点</dt>
+                <dd>pivot 0.5, 0.5</dd>
+              </div>
+              <div>
+                <dt>透明</dt>
+                <dd>8-bit RGBA / Premultiplied Alpha</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section class="detail-block">
+            <h3>包内容</h3>
+            <div class="chips">
+              <span id="svgChip">SVG 0</span>
+              <span id="seqChip">SEQ 0</span>
+              <span>Atlas 待打包</span>
+            </div>
+          </section>
+        </aside>
+      </div>
+    </main>
+
+    <script>
+      const ASSET_ROOT = './assets/export_sample/';
+      const FALLBACK_MANIFEST = {
+        "characterId": "mochiA",
+        "coordinateSystem": {
+          "canvasPx": { "@1x": 512, "@2x": 1024, "@3x": 1536 },
+          "originPxAt1x": { "x": 256, "y": 256 },
+          "pivotNormalized": { "x": 0.5, "y": 0.5 },
+          "safetyPaddingPxAt1x": 4
+        },
+        "svgParts": [
+          { "node": "mochiA_mouth_upper", "file": "svg/mochiA_mouth_upper.svg" },
+          { "node": "mochiA_mouth_lower", "file": "svg/mochiA_mouth_lower.svg" },
+          { "node": "mochiA_tongue", "file": "svg/mochiA_tongue.svg" },
+          { "node": "mochiA_brow_L", "file": "svg/mochiA_brow_L.svg" },
+          { "node": "mochiA_brow_R", "file": "svg/mochiA_brow_R.svg" },
+          { "node": "mochiA_eyeWhite_L", "file": "svg/mochiA_eyeWhite_L.svg" },
+          { "node": "mochiA_eyeWhite_R", "file": "svg/mochiA_eyeWhite_R.svg" },
+          { "node": "mochiA_iris_L", "file": "svg/mochiA_iris_L.svg" },
+          { "node": "mochiA_iris_R", "file": "svg/mochiA_iris_R.svg" },
+          { "node": "mochiA_pupil_L", "file": "svg/mochiA_pupil_L.svg" },
+          { "node": "mochiA_pupil_R", "file": "svg/mochiA_pupil_R.svg" },
+          { "node": "mochiA_lash_upper_L", "file": "svg/mochiA_lash_upper_L.svg" },
+          { "node": "mochiA_lash_upper_R", "file": "svg/mochiA_lash_upper_R.svg" },
+          { "node": "mochiA_lash_lower_L", "file": "svg/mochiA_lash_lower_L.svg" },
+          { "node": "mochiA_lash_lower_R", "file": "svg/mochiA_lash_lower_R.svg" }
+        ],
+        "sequences": [
+          {
+            "id": "eye_blink",
+            "fps": 12,
+            "frameCount": 8,
+            "filenamePattern": "mochiA_eye_blink_{frame}.png",
+            "dirs": { "@1x": "seq/@1x/eye_blink", "@2x": "seq/@2x/eye_blink", "@3x": "seq/@3x/eye_blink" }
+          },
+          {
+            "id": "mouth_open",
+            "fps": 12,
+            "frameCount": 8,
+            "filenamePattern": "mochiA_mouth_open_{frame}.png",
+            "dirs": { "@1x": "seq/@1x/mouth_open", "@2x": "seq/@2x/mouth_open", "@3x": "seq/@3x/mouth_open" }
+          }
+        ],
+        "drawOrder": [
+          "mochiA_eyeWhite_L",
+          "mochiA_eyeWhite_R",
+          "mochiA_iris_L",
+          "mochiA_iris_R",
+          "mochiA_pupil_L",
+          "mochiA_pupil_R",
+          "mochiA_lash_lower_L",
+          "mochiA_lash_lower_R",
+          "mochiA_lash_upper_L",
+          "mochiA_lash_upper_R",
+          "mochiA_brow_L",
+          "mochiA_brow_R",
+          "mochiA_tongue",
+          "mochiA_mouth_lower",
+          "mochiA_mouth_upper"
+        ]
+      };
+
+      const labels = {
+        mouth_upper: '上嘴唇',
+        mouth_lower: '下嘴唇',
+        tongue: '舌头',
+        brow_L: '左眉',
+        brow_R: '右眉',
+        eyeWhite_L: '左眼白',
+        eyeWhite_R: '右眼白',
+        iris_L: '左虹膜',
+        iris_R: '右虹膜',
+        pupil_L: '左瞳孔',
+        pupil_R: '右瞳孔',
+        lash_upper_L: '左上睫毛',
+        lash_upper_R: '右上睫毛',
+        lash_lower_L: '左下睫毛',
+        lash_lower_R: '右下睫毛',
+        eye_blink: '眨眼',
+        mouth_open: '张嘴'
+      };
+
+      const state = {
+        manifest: FALLBACK_MANIFEST,
+        mode: 'composite',
+        scale: '@1x',
+        activePart: 'mochiA_tongue',
+        activeSequence: 'eye_blink',
+        frame: 0,
+        playing: true,
+        lastTick: 0
+      };
+
+      const els = {
+        modeTabs: document.querySelector('#modeTabs'),
+        scaleTabs: document.querySelector('#scaleTabs'),
+        partList: document.querySelector('#partList'),
+        sequenceList: document.querySelector('#sequenceList'),
+        partCount: document.querySelector('#partCount'),
+        sequenceCount: document.querySelector('#sequenceCount'),
+        layerStack: document.querySelector('#layerStack'),
+        singleStage: document.querySelector('#singleStage'),
+        sequenceImage: document.querySelector('#sequenceImage'),
+        frameStrip: document.querySelector('#frameStrip'),
+        frameSlider: document.querySelector('#frameSlider'),
+        frameText: document.querySelector('#frameText'),
+        playToggle: document.querySelector('#playToggle'),
+        prevFrame: document.querySelector('#prevFrame'),
+        nextFrame: document.querySelector('#nextFrame'),
+        previewTitle: document.querySelector('#previewTitle'),
+        previewSubtitle: document.querySelector('#previewSubtitle'),
+        activeScaleChip: document.querySelector('#activeScaleChip'),
+        activeFrameChip: document.querySelector('#activeFrameChip'),
+        detailName: document.querySelector('#detailName'),
+        detailPath: document.querySelector('#detailPath'),
+        detailNode: document.querySelector('#detailNode'),
+        svgChip: document.querySelector('#svgChip'),
+        seqChip: document.querySelector('#seqChip')
+      };
+
+      function assetUrl(path) {
+        return `${ASSET_ROOT}${path}`;
+      }
+
+      function partShortName(node) {
+        return node.replace(`${state.manifest.characterId}_`, '');
+      }
+
+      function displayName(id) {
+        return labels[id] || id.replaceAll('_', ' ');
+      }
+
+      function frameToken(frame) {
+        return String(frame).padStart(3, '0');
+      }
+
+      function sequenceById(id) {
+        return state.manifest.sequences.find((sequence) => sequence.id === id) || state.manifest.sequences[0];
+      }
+
+      function partByNode(node) {
+        return state.manifest.svgParts.find((part) => part.node === node) || state.manifest.svgParts[0];
+      }
+
+      function sequenceFramePath(sequence = sequenceById(state.activeSequence), frame = state.frame) {
+        const dir = sequence.dirs[state.scale] || sequence.dirs['@1x'];
+        return `${dir}/${sequence.filenamePattern.replace('{frame}', frameToken(frame))}`;
+      }
+
+      function setActiveMode(mode) {
+        state.mode = mode;
+        document.querySelectorAll('.mode-surface').forEach((surface) => {
+          surface.classList.toggle('active', surface.id === `${mode}Surface`);
+        });
+        document.querySelectorAll('#modeTabs button').forEach((button) => {
+          button.classList.toggle('active', button.dataset.mode === mode);
+        });
+        renderComposite();
+        renderDetails();
+      }
+
+      function setActiveScale(scale) {
+        state.scale = scale;
+        document.querySelectorAll('#scaleTabs button').forEach((button) => {
+          button.classList.toggle('active', button.dataset.scale === scale);
+        });
+        renderSequence();
+        renderDetails();
+      }
+
+      function setActivePart(node) {
+        state.activePart = node;
+        document.querySelectorAll('.part-button').forEach((button) => {
+          button.classList.toggle('active', button.dataset.node === node);
+        });
+        renderComposite();
+        renderSinglePart();
+        renderDetails();
+      }
+
+      function setActiveSequence(id) {
+        const sequence = sequenceById(id);
+        state.activeSequence = sequence.id;
+        state.frame = Math.min(state.frame, sequence.frameCount - 1);
+        els.frameSlider.max = String(sequence.frameCount - 1);
+        document.querySelectorAll('.sequence-button').forEach((button) => {
+          button.classList.toggle('active', button.dataset.sequence === sequence.id);
+        });
+        renderSequence();
+        renderFrameStrip();
+        renderDetails();
+      }
+
+      function setFrame(frame) {
+        const sequence = sequenceById(state.activeSequence);
+        state.frame = (frame + sequence.frameCount) % sequence.frameCount;
+        renderSequence();
+        renderFrameStrip();
+        renderDetails();
+      }
+
+      function renderLists() {
+        const { manifest } = state;
+        els.partCount.textContent = manifest.svgParts.length;
+        els.sequenceCount.textContent = manifest.sequences.length;
+        els.svgChip.textContent = `SVG ${manifest.svgParts.length}`;
+        els.seqChip.textContent = `SEQ ${manifest.sequences.length}`;
+        els.partList.replaceChildren();
+        els.sequenceList.replaceChildren();
+
+        manifest.svgParts.forEach((part) => {
+          const shortName = partShortName(part.node);
+          const button = document.createElement('button');
+          button.className = 'part-button';
+          button.type = 'button';
+          button.dataset.node = part.node;
+          button.innerHTML = `
+            <img alt="" src="${assetUrl(part.file)}" />
+            <span>${displayName(shortName)}</span>
+            <small>SVG</small>
+          `;
+          button.addEventListener('click', () => {
+            setActivePart(part.node);
+            setActiveMode('parts');
+          });
+          els.partList.append(button);
+        });
+
+        manifest.sequences.forEach((sequence) => {
+          const button = document.createElement('button');
+          button.className = 'sequence-button';
+          button.type = 'button';
+          button.dataset.sequence = sequence.id;
+          button.innerHTML = `
+            <span>${displayName(sequence.id)}</span>
+            <small>${sequence.frameCount}f · ${sequence.fps}fps</small>
+          `;
+          button.addEventListener('click', () => {
+            setActiveSequence(sequence.id);
+            setActiveMode('sequence');
+          });
+          els.sequenceList.append(button);
+        });
+      }
+
+      function renderComposite() {
+        const ordered = state.manifest.drawOrder
+          .map((node) => partByNode(node))
+          .filter(Boolean);
+        els.layerStack.replaceChildren();
+        ordered.forEach((part) => {
+          const img = document.createElement('img');
+          img.src = assetUrl(part.file);
+          img.alt = displayName(partShortName(part.node));
+          img.classList.toggle('focus-layer', part.node === state.activePart);
+          img.classList.toggle('dimmed', state.mode === 'parts' && part.node !== state.activePart);
+          els.layerStack.append(img);
+        });
+      }
+
+      function renderSinglePart() {
+        const part = partByNode(state.activePart);
+        els.singleStage.replaceChildren();
+        const img = document.createElement('img');
+        img.src = assetUrl(part.file);
+        img.alt = displayName(partShortName(part.node));
+        els.singleStage.append(img);
+      }
+
+      function renderSequence() {
+        const sequence = sequenceById(state.activeSequence);
+        const path = sequenceFramePath(sequence, state.frame);
+        els.sequenceImage.src = assetUrl(path);
+        els.sequenceImage.alt = `${displayName(sequence.id)} ${frameToken(state.frame)}`;
+        els.frameSlider.max = String(sequence.frameCount - 1);
+        els.frameSlider.value = String(state.frame);
+        els.frameText.textContent = `${frameToken(state.frame)} / ${frameToken(sequence.frameCount - 1)}`;
+        els.activeFrameChip.textContent = `frame ${frameToken(state.frame)}`;
+      }
+
+      function renderFrameStrip() {
+        const sequence = sequenceById(state.activeSequence);
+        els.frameStrip.replaceChildren();
+        for (let frame = 0; frame < sequence.frameCount; frame += 1) {
+          const button = document.createElement('button');
+          button.className = 'thumb-button';
+          button.type = 'button';
+          button.classList.toggle('active', frame === state.frame);
+          button.setAttribute('aria-label', `第 ${frameToken(frame)} 帧`);
+          button.innerHTML = `<img alt="" src="${assetUrl(sequenceFramePath(sequence, frame))}" />`;
+          button.addEventListener('click', () => setFrame(frame));
+          els.frameStrip.append(button);
+        }
+      }
+
+      function renderDetails() {
+        const sequence = sequenceById(state.activeSequence);
+        const part = partByNode(state.activePart);
+        els.activeScaleChip.textContent = state.scale;
+
+        if (state.mode === 'sequence') {
+          const path = sequenceFramePath(sequence, state.frame);
+          els.previewTitle.textContent = `${displayName(sequence.id)} · 序列帧`;
+          els.previewSubtitle.textContent = `${sequence.frameCount} 帧，${sequence.fps} fps，当前倍率 ${state.scale}。`;
+          els.detailName.textContent = displayName(sequence.id);
+          els.detailPath.textContent = `assets/export_sample/${path}`;
+          els.detailNode.textContent = sequence.id;
+          return;
+        }
+
+        const shortName = partShortName(part.node);
+        els.previewTitle.textContent = state.mode === 'parts' ? `${displayName(shortName)} · SVG 部件` : '组合预览';
+        els.previewSubtitle.textContent = state.mode === 'parts'
+          ? '单个 SVG 仍保持全脸画板，覆盖绘制内容时锚点不会漂。'
+          : '所有部件共用 512x512 坐标系，蓝点是中心锚点。';
+        els.detailName.textContent = displayName(shortName);
+        els.detailPath.textContent = `assets/export_sample/${part.file}`;
+        els.detailNode.textContent = part.node;
+      }
+
+      function tick(time) {
+        const sequence = sequenceById(state.activeSequence);
+        if (state.playing && state.mode === 'sequence') {
+          const frameMs = 1000 / sequence.fps;
+          if (!state.lastTick || time - state.lastTick >= frameMs) {
+            state.lastTick = time;
+            setFrame(state.frame + 1);
+          }
+        }
+        requestAnimationFrame(tick);
+      }
+
+      async function loadManifest() {
+        try {
+          const response = await fetch(`${ASSET_ROOT}export_manifest.json`, { cache: 'no-store' });
+          if (response.ok) state.manifest = await response.json();
+        } catch (error) {
+          state.manifest = FALLBACK_MANIFEST;
+        }
+        state.activePart = state.manifest.svgParts.find((part) => part.node.endsWith('tongue'))?.node || state.manifest.svgParts[0]?.node;
+        state.activeSequence = state.manifest.sequences[0]?.id || 'eye_blink';
+      }
+
+      function bindEvents() {
+        els.modeTabs.addEventListener('click', (event) => {
+          const button = event.target.closest('button[data-mode]');
+          if (!button) return;
+          setActiveMode(button.dataset.mode);
+        });
+
+        els.scaleTabs.addEventListener('click', (event) => {
+          const button = event.target.closest('button[data-scale]');
+          if (!button) return;
+          setActiveScale(button.dataset.scale);
+        });
+
+        els.playToggle.addEventListener('click', () => {
+          state.playing = !state.playing;
+          els.playToggle.textContent = state.playing ? '暂停' : '播放';
+          state.lastTick = 0;
+        });
+
+        els.prevFrame.addEventListener('click', () => {
+          state.playing = false;
+          els.playToggle.textContent = '播放';
+          setFrame(state.frame - 1);
+        });
+
+        els.nextFrame.addEventListener('click', () => {
+          state.playing = false;
+          els.playToggle.textContent = '播放';
+          setFrame(state.frame + 1);
+        });
+
+        els.frameSlider.addEventListener('input', () => {
+          state.playing = false;
+          els.playToggle.textContent = '播放';
+          setFrame(Number(els.frameSlider.value));
+        });
+
+        window.addEventListener('keydown', (event) => {
+          if (event.key === 'ArrowLeft') setFrame(state.frame - 1);
+          if (event.key === 'ArrowRight') setFrame(state.frame + 1);
+          if (event.key === ' ') {
+            event.preventDefault();
+            state.playing = !state.playing;
+            els.playToggle.textContent = state.playing ? '暂停' : '播放';
+            state.lastTick = 0;
+          }
+        });
+      }
+
+      async function init() {
+        await loadManifest();
+        renderLists();
+        bindEvents();
+        setActivePart(state.activePart);
+        setActiveSequence(state.activeSequence);
+        setActiveScale(state.scale);
+        setActiveMode(state.mode);
+        renderFrameStrip();
+        requestAnimationFrame(tick);
+      }
+
+      init();
+    </script>
+  </body>
+</html>

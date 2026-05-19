@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <metadata>origin:256,256 pivot:0.5,0.5 node:mochiA_tongue</metadata>
+  <g id="mochiA_tongue">
+    <path fill="#ff7898" d="M226 310c0-21 12-36 30-36s30 15 30 36v70c0 31-13 50-30 50s-30-19-30-50v-70Z"/>
+    <path fill="#ff9fb5" d="M256 292c10 0 17 9 17 23v62c0 20-7 32-17 32s-17-12-17-32v-62c0-14 7-23 17-23Z"/>
+    <path fill="#ffd7e2" d="M252 309h8v92h-8z" opacity="0.52"/>
+  </g>
+</svg>

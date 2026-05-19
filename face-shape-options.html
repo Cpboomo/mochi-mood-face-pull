@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mochi Mood · 脸型方向对比</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #45283d;
+        --muted: #8b6d7a;
+        --pink: #ff6f94;
+        --card: rgba(255, 255, 255, 0.68);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        min-height: 100vh;
+        margin: 0;
+        color: var(--ink);
+        background:
+          radial-gradient(ellipse at 12% 10%, rgba(158, 220, 248, 0.16), transparent 30%),
+          radial-gradient(ellipse at 86% 86%, rgba(255, 111, 148, 0.18), transparent 34%),
+          linear-gradient(145deg, #fffaf3, #fff1e9 52%, #fdeeff);
+      }
+
+      main {
+        width: min(1180px, calc(100vw - 40px));
+        margin: 0 auto;
+        padding: 42px 0;
+      }
+
+      header {
+        margin-bottom: 26px;
+      }
+
+      h1,
+      p {
+        margin: 0;
+      }
+
+      h1 {
+        font-size: clamp(30px, 5vw, 54px);
+        line-height: 1;
+        font-weight: 950;
+      }
+
+      p {
+        margin-top: 10px;
+        color: var(--muted);
+        font-size: 18px;
+        font-weight: 800;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 18px;
+      }
+
+      article {
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.86);
+        border-radius: 34px;
+        background: linear-gradient(145deg, rgba(255, 255, 255, 0.82), rgba(255, 247, 245, 0.6));
+        box-shadow: 0 20px 56px rgba(110, 68, 92, 0.16);
+      }
+
+      .stage {
+        display: grid;
+        min-height: 430px;
+        place-items: center;
+        padding: 22px 22px 8px;
+      }
+
+      .copy {
+        padding: 0 26px 28px;
+      }
+
+      h2 {
+        margin: 0;
+        font-size: 26px;
+        line-height: 1.1;
+        font-weight: 950;
+      }
+
+      h2 span {
+        color: var(--pink);
+      }
+
+      .copy p {
+        margin-top: 10px;
+        font-size: 15px;
+        line-height: 1.55;
+        font-weight: 760;
+      }
+
+      svg {
+        width: 100%;
+        max-width: 330px;
+        height: auto;
+        overflow: visible;
+      }
+
+      .ear {
+        fill: url(#skinEar);
+        stroke: rgba(111, 49, 66, 0.08);
+        stroke-width: 2;
+      }
+
+      .inner-ear {
+        fill: rgba(255, 226, 204, 0.55);
+      }
+
+      .face {
+        fill: url(#skin);
+        stroke: rgba(111, 49, 66, 0.08);
+        stroke-width: 2.4;
+      }
+
+      .rim {
+        fill: url(#rim);
+        opacity: 0.5;
+      }
+
+      .highlight {
+        fill: none;
+        stroke: rgba(255, 248, 228, 0.66);
+        stroke-linecap: round;
+        stroke-width: 16;
+      }
+
+      .highlight-thin {
+        fill: none;
+        stroke: rgba(255, 255, 255, 0.34);
+        stroke-linecap: round;
+        stroke-width: 5;
+      }
+
+      .brow,
+      .hair {
+        fill: none;
+        stroke: #45283d;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .hair {
+        stroke-width: 11;
+      }
+
+      .brow {
+        stroke-width: 8;
+      }
+
+      .eye-white {
+        fill: #fffdf8;
+        stroke: rgba(84, 32, 51, 0.13);
+        stroke-width: 2;
+      }
+
+      .pupil {
+        fill: url(#pupil);
+      }
+
+      .spark {
+        fill: rgba(255, 255, 255, 0.95);
+      }
+
+      .blush {
+        fill: url(#blush);
+      }
+
+      .mouth {
+        fill: #2a1024;
+        stroke: rgba(65, 22, 41, 0.7);
+        stroke-width: 3;
+      }
+
+      .tongue {
+        fill: #ff6f94;
+      }
+
+      .nose {
+        fill: #f0a270;
+      }
+
+      .shadow {
+        fill: rgba(105, 54, 74, 0.11);
+      }
+
+      @media (max-width: 900px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+
+        article {
+          display: grid;
+          grid-template-columns: 0.9fr 1fr;
+          align-items: center;
+        }
+
+        .stage {
+          min-height: 320px;
+        }
+      }
+
+      @media (max-width: 620px) {
+        main {
+          width: min(100vw - 24px, 420px);
+          padding: 24px 0;
+        }
+
+        article {
+          display: block;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>脸型方向对比</h1>
+        <p>同一套五官，只看轮廓气质和可拉扯空间。</p>
+      </header>
+
+      <section class="grid" aria-label="三种脸型方向">
+        <article>
+          <div class="stage">
+            <svg viewBox="0 0 360 360" role="img" aria-label="A 软糯团子脸">
+              <defs>
+                <radialGradient id="skin" cx="38%" cy="30%" r="78%">
+                  <stop offset="0" stop-color="#fff6d8" />
+                  <stop offset="0.35" stop-color="#ffe4b3" />
+                  <stop offset="0.74" stop-color="#f7aa72" />
+                  <stop offset="1" stop-color="#df8460" />
+                </radialGradient>
+                <radialGradient id="skinEar" cx="35%" cy="28%" r="80%">
+                  <stop offset="0" stop-color="#ffd7ad" />
+                  <stop offset="0.72" stop-color="#f4a06f" />
+                  <stop offset="1" stop-color="#de7e60" />
+                </radialGradient>
+                <linearGradient id="rim" x1="0" x2="1" y1="0" y2="1">
+                  <stop offset="0" stop-color="#ff8dad" />
+                  <stop offset="0.3" stop-color="#ff8dad" stop-opacity="0" />
+                  <stop offset="1" stop-color="#9e4f50" stop-opacity="0.16" />
+                </linearGradient>
+                <radialGradient id="pupil" cx="35%" cy="30%" r="80%">
+                  <stop offset="0" stop-color="#6f5877" />
+                  <stop offset="0.5" stop-color="#35283f" />
+                  <stop offset="1" stop-color="#17101d" />
+                </radialGradient>
+                <radialGradient id="blush" cx="50%" cy="50%" r="50%">
+                  <stop offset="0" stop-color="#ff6b8a" stop-opacity="0.36" />
+                  <stop offset="1" stop-color="#ff8490" stop-opacity="0" />
+                </radialGradient>
+              </defs>
+              <ellipse class="shadow" cx="180" cy="324" rx="104" ry="19" />
+              <ellipse class="ear" cx="57" cy="188" rx="27" ry="34" />
+              <ellipse class="ear" cx="303" cy="188" rx="27" ry="34" />
+              <ellipse class="inner-ear" cx="63" cy="188" rx="12" ry="21" />
+              <ellipse class="inner-ear" cx="297" cy="188" rx="12" ry="21" />
+              <path class="face" d="M126 62C83 70 60 109 61 169C62 238 99 288 151 299C168 303 192 303 209 299C261 288 298 238 299 169C300 109 277 70 234 62C216 58 144 58 126 62Z" />
+              <path class="rim" d="M126 62C83 70 60 109 61 169C62 238 99 288 151 299C168 303 192 303 209 299C261 288 298 238 299 169C300 109 277 70 234 62C216 58 144 58 126 62Z" />
+              <path class="highlight" d="M97 159C103 119 121 92 150 84" />
+              <path class="highlight-thin" d="M121 154C127 126 141 108 162 101" />
+              <g>
+                <path class="hair" d="M144 66Q138 40 120 55" />
+                <path class="hair" d="M180 65Q180 37 180 48" />
+                <path class="hair" d="M216 66Q222 40 240 55" />
+              </g>
+              <path class="brow" d="M114 129Q136 126 157 129" />
+              <path class="brow" d="M203 129Q224 126 246 129" />
+              <circle class="eye-white" cx="132" cy="166" r="26" />
+              <circle class="eye-white" cx="228" cy="166" r="26" />
+              <circle class="pupil" cx="132" cy="166" r="13" />
+              <circle class="pupil" cx="228" cy="166" r="13" />
+              <circle class="spark" cx="137" cy="160" r="5" />
+              <circle class="spark" cx="233" cy="160" r="5" />
+              <ellipse class="blush" cx="103" cy="217" rx="36" ry="20" />
+              <ellipse class="blush" cx="257" cy="217" rx="36" ry="20" />
+              <ellipse class="nose" cx="180" cy="202" rx="11" ry="8" />
+              <ellipse class="mouth" cx="180" cy="244" rx="26" ry="9" />
+              <path class="tongue" d="M171 246C173 264 187 264 189 246Z" />
+            </svg>
+          </div>
+          <div class="copy">
+            <h2><span>A</span> 软糯团子脸</h2>
+            <p>最接近参考图。脸颊有面积、下巴短、整体像能被捏变形的 mochi，适合做拽脸核心手感。</p>
+          </div>
+        </article>
+
+        <article>
+          <div class="stage">
+            <svg viewBox="0 0 360 360" role="img" aria-label="B 婴儿圆脸">
+              <ellipse class="shadow" cx="180" cy="324" rx="98" ry="18" />
+              <ellipse class="ear" cx="62" cy="188" rx="24" ry="32" />
+              <ellipse class="ear" cx="298" cy="188" rx="24" ry="32" />
+              <ellipse class="inner-ear" cx="68" cy="188" rx="11" ry="19" />
+              <ellipse class="inner-ear" cx="292" cy="188" rx="11" ry="19" />
+              <path class="face" d="M180 56C113 56 66 103 66 176C66 248 111 298 180 300C249 298 294 248 294 176C294 103 247 56 180 56Z" />
+              <path class="rim" d="M180 56C113 56 66 103 66 176C66 248 111 298 180 300C249 298 294 248 294 176C294 103 247 56 180 56Z" />
+              <path class="highlight" d="M96 161C101 119 124 88 158 78" />
+              <path class="highlight-thin" d="M121 154C128 126 145 105 168 96" />
+              <g>
+                <path class="hair" d="M145 65Q139 43 122 56" />
+                <path class="hair" d="M180 65Q180 39 180 49" />
+                <path class="hair" d="M215 65Q221 43 238 56" />
+              </g>
+              <path class="brow" d="M115 128Q136 126 156 129" />
+              <path class="brow" d="M204 129Q224 126 245 128" />
+              <circle class="eye-white" cx="132" cy="166" r="25" />
+              <circle class="eye-white" cx="228" cy="166" r="25" />
+              <circle class="pupil" cx="132" cy="166" r="13" />
+              <circle class="pupil" cx="228" cy="166" r="13" />
+              <circle class="spark" cx="137" cy="160" r="5" />
+              <circle class="spark" cx="233" cy="160" r="5" />
+              <ellipse class="blush" cx="106" cy="218" rx="35" ry="20" />
+              <ellipse class="blush" cx="254" cy="218" rx="35" ry="20" />
+              <ellipse class="nose" cx="180" cy="202" rx="10" ry="8" />
+              <ellipse class="mouth" cx="180" cy="244" rx="25" ry="9" />
+              <path class="tongue" d="M172 246C174 263 186 263 188 246Z" />
+            </svg>
+          </div>
+          <div class="copy">
+            <h2><span>B</span> 婴儿圆脸</h2>
+            <p>更亲和、更幼态，额头和圆脸感更强。缺点是拉扯方向感弱一点，容易变成普通可爱头像。</p>
+          </div>
+        </article>
+
+        <article>
+          <div class="stage">
+            <svg viewBox="0 0 360 360" role="img" aria-label="C 布丁馒头脸">
+              <ellipse class="shadow" cx="180" cy="324" rx="110" ry="20" />
+              <ellipse class="ear" cx="55" cy="192" rx="25" ry="33" />
+              <ellipse class="ear" cx="305" cy="192" rx="25" ry="33" />
+              <ellipse class="inner-ear" cx="61" cy="192" rx="11" ry="20" />
+              <ellipse class="inner-ear" cx="299" cy="192" rx="11" ry="20" />
+              <path class="face" d="M132 62C91 67 66 98 61 151C55 222 91 283 148 300C169 306 191 306 212 300C269 283 305 222 299 151C294 98 269 67 228 62C207 59 153 59 132 62Z" />
+              <path class="rim" d="M132 62C91 67 66 98 61 151C55 222 91 283 148 300C169 306 191 306 212 300C269 283 305 222 299 151C294 98 269 67 228 62C207 59 153 59 132 62Z" />
+              <path class="highlight" d="M95 160C100 122 119 92 150 83" />
+              <path class="highlight-thin" d="M120 154C127 126 142 106 164 99" />
+              <g>
+                <path class="hair" d="M145 66Q139 43 121 56" />
+                <path class="hair" d="M180 65Q180 38 180 48" />
+                <path class="hair" d="M215 66Q221 43 239 56" />
+              </g>
+              <path class="brow" d="M114 128Q136 126 157 129" />
+              <path class="brow" d="M203 129Q224 126 246 128" />
+              <circle class="eye-white" cx="132" cy="166" r="25" />
+              <circle class="eye-white" cx="228" cy="166" r="25" />
+              <circle class="pupil" cx="132" cy="166" r="13" />
+              <circle class="pupil" cx="228" cy="166" r="13" />
+              <circle class="spark" cx="137" cy="160" r="5" />
+              <circle class="spark" cx="233" cy="160" r="5" />
+              <ellipse class="blush" cx="100" cy="220" rx="39" ry="21" />
+              <ellipse class="blush" cx="260" cy="220" rx="39" ry="21" />
+              <ellipse class="nose" cx="180" cy="202" rx="10" ry="8" />
+              <ellipse class="mouth" cx="180" cy="244" rx="25" ry="9" />
+              <path class="tongue" d="M172 246C174 264 186 264 188 246Z" />
+            </svg>
+          </div>
+          <div class="copy">
+            <h2><span>C</span> 布丁馒头脸</h2>
+            <p>上窄下宽，憨软感最强，脸颊最适合横向拉。缺点是容易显呆，需要五官更活泼来平衡。</p>
+          </div>
+        </article>
+      </section>
+    </main>
+  </body>
+</html>

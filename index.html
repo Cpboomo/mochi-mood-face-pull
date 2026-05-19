@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#fff4e8" />
+    <meta http-equiv="Cache-Control" content="no-store" />
+    <title>啵叽拽脸 · 解压小游戏</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="./styles.css?v=mochi-asset-mouth-1" />
+  </head>
+  <body>
+    <main class="toy-shell" aria-label="啵叽拽脸解压小游戏">
+      <canvas id="stage" width="1280" height="900" aria-label="点击并拖拽脸部部位"></canvas>
+
+      <section class="top-hud" aria-label="游戏状态">
+        <div class="header-card glass-card">
+          <div class="brand-copy">
+            <strong>啵叽拽脸 <span aria-hidden="true">✦</span></strong>
+            <small>今日解压值 · <b id="relaxValue">0</b></small>
+            <span>轻拽，回弹，连击</span>
+          </div>
+
+          <div class="action-card">
+            <button id="openMenu" type="button" title="模式" aria-label="模式">▶</button>
+            <button id="toggleSound" type="button" title="声音" aria-label="声音">♪</button>
+            <button id="captureMoment" type="button" title="保存瞬间" aria-label="保存瞬间">◎</button>
+            <a href="./asset-browser.html" title="游览模式" aria-label="游览模式">游览</a>
+            <button id="toggleDecor" type="button" title="装扮" aria-label="装扮">✦</button>
+            <button id="resetPose" type="button" title="重置姿势" aria-label="重置姿势">↺</button>
+            <button id="toggleDebug" type="button" title="调参工具" aria-label="调参工具">⚙</button>
+          </div>
+        </div>
+
+        <div class="satisfaction-card glass-card" aria-label="爽感值">
+          <span><b id="moodLabel">软乎乎</b><i aria-hidden="true">♥</i></span>
+          <div class="jelly-meter" aria-hidden="true">
+            <i id="satisfactionFill"></i>
+            <em></em>
+          </div>
+          <b id="satisfactionText">0%</b>
+        </div>
+      </section>
+
+      <section id="runStrip" class="run-strip glass-card" aria-label="本局状态">
+        <div class="mode-chip">
+          <span id="modeLabel">自由模式</span>
+          <b id="timerText">∞</b>
+        </div>
+        <div class="quest-chip">
+          <span id="questText">舌头三连弹</span>
+          <i aria-hidden="true"><em id="questFill"></em></i>
+        </div>
+        <div class="score-chip">
+          <span>COMBO</span>
+          <b id="comboText">0</b>
+        </div>
+      </section>
+
+      <div id="speechBubble" class="speech-bubble glass-card" aria-live="polite"></div>
+
+      <section class="part-tabs glass-card" aria-label="拖拽部位">
+        <button class="active" data-part-tab="tongue" type="button"><span aria-hidden="true">∪</span>舌头</button>
+        <button data-part-tab="cheek" type="button"><span aria-hidden="true">○</span>脸颊</button>
+        <button data-part-tab="nose" type="button"><span aria-hidden="true">⌇</span>鼻子</button>
+        <button data-part-tab="mouth" type="button"><span aria-hidden="true">⌣</span>嘴角</button>
+        <button data-part-tab="ear" type="button"><span aria-hidden="true">◖</span>耳朵</button>
+        <button data-part-tab="hair" type="button"><span aria-hidden="true">⌁</span>头发</button>
+      </section>
+
+      <section id="gestureHint" class="bottom-panel glass-card" aria-label="拖拽反馈">
+        <div class="panel-copy">
+          <strong id="interactionTitle">拖拽强度预览</strong>
+          <span id="interactionDetail">拉长，松手，回弹</span>
+        </div>
+        <div class="coin-pill" aria-label="金币">
+          <span aria-hidden="true">★</span>
+          <b id="coinCount">0</b>
+        </div>
+        <div class="strength-track" aria-hidden="true">
+          <i id="strengthFill"></i>
+          <em></em>
+        </div>
+        <div class="threshold-pill">爽感阈值：<b id="thresholdText">轻拽</b></div>
+      </section>
+
+      <aside id="debugPanel" class="debug-panel glass-card" aria-label="调参工具" hidden>
+        <header>
+          <h1>舌头调参</h1>
+          <button id="exportPreset" type="button">导出</button>
+        </header>
+        <div class="debug-grid" id="debugControls"></div>
+        <div class="debug-readout" id="debugReadout"></div>
+      </aside>
+
+      <aside id="decorPanel" class="decor-panel" aria-label="装扮面板" hidden>
+        <div class="decor-backdrop" aria-hidden="true"></div>
+        <div class="decor-sheet glass-card">
+        <header>
+          <div>
+            <h1>果冻装扮盒</h1>
+            <p>点一下试试贴纸效果</p>
+          </div>
+          <button id="closeDecor" type="button" aria-label="关闭装扮">×</button>
+        </header>
+        <div class="decor-grid" id="decorControls"></div>
+        <button id="clearDecor" class="clear-decor" type="button">清空装扮</button>
+        </div>
+      </aside>
+
+      <section id="startOverlay" class="start-overlay" aria-label="开始游戏">
+        <div class="start-card glass-card">
+          <p class="start-kicker">Boji Pull Face</p>
+          <h1>啵叽拽脸</h1>
+          <p class="start-copy">捏、拽、松手，看整张脸弹回去。</p>
+          <div class="mode-buttons">
+            <button id="startFree" type="button">自由捏</button>
+            <button id="startTimed" type="button">60秒爆爽</button>
+          </div>
+          <dl class="record-grid" aria-label="记录">
+            <div>
+              <dt>最佳</dt>
+              <dd id="bestScoreText">0</dd>
+            </div>
+            <div>
+              <dt>连拽</dt>
+              <dd id="bestComboText">0</dd>
+            </div>
+            <div>
+              <dt>金币</dt>
+              <dd id="menuCoinText">0</dd>
+            </div>
+          </dl>
+        </div>
+      </section>
+
+      <section id="resultOverlay" class="result-overlay" aria-label="结算" hidden>
+        <div class="result-card glass-card">
+          <p class="start-kicker">Result</p>
+          <h1 id="resultTitle">爆爽完成</h1>
+          <div class="result-score" id="resultScoreText">0</div>
+          <p id="resultDetail">新纪录</p>
+          <div class="mode-buttons">
+            <button id="replayTimed" type="button">再来一局</button>
+            <button id="backFree" type="button">自由捏</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="./src/main.js?v=boji-complete-1"></script>
+  </body>
+</html>

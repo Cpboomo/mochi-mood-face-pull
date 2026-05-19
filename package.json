@@ -1,0 +1,10 @@
+{
+  "name": "cloud-tongue-expression-game",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "python3 -m http.server 8000",
+    "check": "node --check src/main.js"
+  }
+}

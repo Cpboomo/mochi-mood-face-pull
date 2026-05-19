@@ -1,0 +1,196 @@
+{
+  "characterId": "mochiA",
+  "coordinateSystem": {
+    "canvasPx": {
+      "@1x": 512,
+      "@2x": 1024,
+      "@3x": 1536
+    },
+    "originPxAt1x": {
+      "x": 256,
+      "y": 256
+    },
+    "pivotNormalized": {
+      "x": 0.5,
+      "y": 0.5
+    },
+    "safetyPaddingPxAt1x": 4,
+    "note": "All SVG parts and PNG sequence frames share a full-face 1:1 coordinate space."
+  },
+  "alpha": {
+    "pngFormat": "8-bit RGBA",
+    "runtimeBlend": "premultiplied-alpha",
+    "placeholderNote": "Guide pixels are fully opaque, so the placeholder PNGs have no semi-transparent fringe."
+  },
+  "svgParts": [
+    {
+      "node": "mochiA_mouth_upper",
+      "file": "svg/mochiA_mouth_upper.svg",
+      "pivotNormalized": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    {
+      "node": "mochiA_mouth_lower",
+      "file": "svg/mochiA_mouth_lower.svg",
+      "pivotNormalized": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    {
+      "node": "mochiA_tongue",
+      "file": "svg/mochiA_tongue.svg",
+      "pivotNormalized": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    {
+      "node": "mochiA_brow_L",
+      "file": "svg/mochiA_brow_L.svg",
+      "pivotNormalized": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    {
+      "node": "mochiA_brow_R",
+      "file": "svg/mochiA_brow_R.svg",
+      "pivotNormalized": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    {
+      "node": "mochiA_eyeWhite_L",
+      "file": "svg/mochiA_eyeWhite_L.svg",
+      "pivotNormalized": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    {
+      "node": "mochiA_eyeWhite_R",
+      "file": "svg/mochiA_eyeWhite_R.svg",
+      "pivotNormalized": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    {
+      "node": "mochiA_iris_L",
+      "file": "svg/mochiA_iris_L.svg",
+      "pivotNormalized": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    {
+      "node": "mochiA_iris_R",
+      "file": "svg/mochiA_iris_R.svg",
+      "pivotNormalized": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    {
+      "node": "mochiA_pupil_L",
+      "file": "svg/mochiA_pupil_L.svg",
+      "pivotNormalized": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    {
+      "node": "mochiA_pupil_R",
+      "file": "svg/mochiA_pupil_R.svg",
+      "pivotNormalized": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    {
+      "node": "mochiA_lash_upper_L",
+      "file": "svg/mochiA_lash_upper_L.svg",
+      "pivotNormalized": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    {
+      "node": "mochiA_lash_upper_R",
+      "file": "svg/mochiA_lash_upper_R.svg",
+      "pivotNormalized": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    {
+      "node": "mochiA_lash_lower_L",
+      "file": "svg/mochiA_lash_lower_L.svg",
+      "pivotNormalized": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    {
+      "node": "mochiA_lash_lower_R",
+      "file": "svg/mochiA_lash_lower_R.svg",
+      "pivotNormalized": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    }
+  ],
+  "sequences": [
+    {
+      "id": "eye_blink",
+      "fps": 12,
+      "frameCount": 8,
+      "filenamePattern": "mochiA_eye_blink_{frame}.png",
+      "dirs": {
+        "@1x": "seq/@1x/eye_blink",
+        "@2x": "seq/@2x/eye_blink",
+        "@3x": "seq/@3x/eye_blink"
+      },
+      "pivotNormalized": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    {
+      "id": "mouth_open",
+      "fps": 12,
+      "frameCount": 8,
+      "filenamePattern": "mochiA_mouth_open_{frame}.png",
+      "dirs": {
+        "@1x": "seq/@1x/mouth_open",
+        "@2x": "seq/@2x/mouth_open",
+        "@3x": "seq/@3x/mouth_open"
+      },
+      "pivotNormalized": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    }
+  ],
+  "drawOrder": [
+    "mochiA_eyeWhite_L",
+    "mochiA_eyeWhite_R",
+    "mochiA_iris_L",
+    "mochiA_iris_R",
+    "mochiA_pupil_L",
+    "mochiA_pupil_R",
+    "mochiA_lash_lower_L",
+    "mochiA_lash_lower_R",
+    "mochiA_lash_upper_L",
+    "mochiA_lash_upper_R",
+    "mochiA_brow_L",
+    "mochiA_brow_R",
+    "mochiA_tongue",
+    "mochiA_mouth_lower",
+    "mochiA_mouth_upper"
+  ]
+}
