@@ -535,10 +535,10 @@ button {
 /* === 装扮栏（底部横向滑动） === */
 .costume-bar {
   position: fixed;
-  z-index: 12;
+  z-index: 13;
   left: max(12px, env(safe-area-inset-left));
   right: max(12px, env(safe-area-inset-right));
-  bottom: max(10px, env(safe-area-inset-bottom));
+  bottom: max(80px, calc(env(safe-area-inset-bottom) + 70px));
   display: flex;
   align-items: center;
   gap: 8px;
