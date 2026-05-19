@@ -532,6 +532,114 @@ button {
   transform: translate(-50%, -9px) rotate(45deg);
 }
 
+/* === 装扮栏（底部横向滑动） === */
+.costume-bar {
+  position: fixed;
+  z-index: 12;
+  left: max(12px, env(safe-area-inset-left));
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(10px, env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 10px;
+  border-radius: 20px;
+  max-width: min(480px, calc(100vw - 24px));
+  margin: 0 auto;
+}
+
+.costume-bar-label {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--muted, #888);
+  writing-mode: vertical-rl;
+  letter-spacing: 2px;
+  padding: 2px 0;
+}
+
+.costume-scroll {
+  flex: 1;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding: 2px 0;
+}
+.costume-scroll::-webkit-scrollbar { display: none; }
+
+.costume-item {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 52px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.72);
+  color: var(--muted, #666);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  transition: transform 120ms ease, background 120ms ease, box-shadow 120ms ease;
+  position: relative;
+}
+
+.costume-item:active {
+  transform: scale(0.94);
+}
+
+.costume-item.is-on {
+  background: linear-gradient(135deg, #ff79a7, #ff6f94);
+  color: white;
+  box-shadow: 0 6px 18px rgba(255, 110, 148, 0.35);
+}
+
+.costume-item.is-locked {
+  background: rgba(210, 200, 205, 0.6);
+  color: #b0a4a8;
+  cursor: pointer;
+}
+
+.costume-item-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.costume-item-name {
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.costume-item-lock {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  font-size: 10px;
+  background: #e0c5d0;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.costume-item-cost {
+  font-size: 9px;
+  font-weight: 700;
+  color: #c58b6f;
+  margin-top: -2px;
+}
+
 .part-tabs {
   position: fixed;
   z-index: 11;
@@ -940,6 +1048,21 @@ button {
     height: 32px;
     right: -15px;
   }
+
+  .costume-bar {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    padding: 5px 6px 5px 8px;
+    border-radius: 16px;
+  }
+  .costume-item {
+    min-width: 44px;
+    padding: 4px 6px;
+    border-radius: 12px;
+  }
+  .costume-item-icon { font-size: 18px; }
+  .costume-item-name { font-size: 9px; }
 
   .part-tabs {
     left: max(14px, env(safe-area-inset-left));

@@ -1,14 +1,14 @@
 /**
- * 拽脸解压玩具 - 核心 runtime
+ * 拽舌头解压玩具 - 核心 runtime
  *
  * 设计依据：
  *   docs/pull-tongue-relaxation-game-requirements.md (v0.1)
  *   docs/visual-to-program-development-workflow.md  (v0.1)
  *
  * 原则：
- *   - 默认画面聚焦大脸 + 嘴巴拉扯，HUD 保持轻量。
+ *   - 默认画面只剩大脸 + 舌头，HUD/挑战/表情墙全部下掉。
  *   - 所有手感参数集中在 `config` 中（PartConfig），debug 面板可调，可导出 JSON。
- *   - 舌头模型保留为待机嘴内细节，不再作为默认拖拽目标。
+ *   - 舌头使用 mouthAnchor + controlA + controlB + tongueTip 四点 Bezier 模型。
  *   - 状态机：Idle → Grabbed → Stretching → Overstretch → ReleaseSnap → Settle → Idle。
  *   - 反馈分层：表情、文字、粒子，按 pull 阈值触发，冷却去重避免刷屏。
  */
@@ -34,10 +34,9 @@ const ASSET_FILES = {
 };
 
 const IS_FILE_PREVIEW = window.location.protocol === 'file:';
-const ENABLE_TONGUE_DRAG = false;
 
 // ---------------------------------------------------------------------------
-// PartConfig - 嘴巴拉扯与软体反馈配置。
+// PartConfig - 第一阶段的舌头部位配置（对应需求文档 §6 / §11）
 // 所有审美/手感参数集中在这里，debug 面板和导出 preset 都基于它。
 // ---------------------------------------------------------------------------
 
@@ -100,9 +99,9 @@ const DEFAULT_CONFIG = {
   noseGrabRadius: 34,
   noseSoftMaxLength: 72,
   noseHardMaxLength: 118,
-  mouthCornerGrabRadius: 46,
-  mouthCornerSoftMaxLength: 92,
-  mouthCornerHardMaxLength: 146,
+  mouthCornerGrabRadius: 32,
+  mouthCornerSoftMaxLength: 78,
+  mouthCornerHardMaxLength: 126,
   earGrabRadius: 42,
   earSoftMaxLength: 86,
   earHardMaxLength: 138,
@@ -154,15 +153,15 @@ const DEBUG_FIELDS = [
   { key: 'settleDuration', label: '余震时长', min: 0.05, max: 1, step: 0.01 },
   { key: 'faceOffsetAmount', label: '头部偏移', min: 0, max: 24, step: 0.5 },
   { key: 'eyeLookAmount', label: '眼神追踪', min: 0, max: 16, step: 0.5 },
-  { key: 'mouthDeformAmount', label: '嘴巴拉扯', min: 0, max: 24, step: 0.5 },
+  { key: 'mouthDeformAmount', label: '嘴角拉扯', min: 0, max: 24, step: 0.5 },
   { key: 'eyebrowLiftAmount', label: '眉毛抬起', min: 0, max: 16, step: 0.5 },
   { key: 'cheekGrabRadius', label: '脸颊命中', min: 24, max: 80, step: 1 },
   { key: 'cheekSoftMaxLength', label: '脸颊软上限', min: 40, max: 180, step: 2 },
   { key: 'cheekReleaseSpring', label: '脸颊回弹', min: 80, max: 1600, step: 20 },
   { key: 'noseGrabRadius', label: '鼻子命中', min: 18, max: 64, step: 1 },
   { key: 'noseSoftMaxLength', label: '鼻子软上限', min: 28, max: 130, step: 2 },
-  { key: 'mouthCornerGrabRadius', label: '嘴巴命中', min: 18, max: 72, step: 1 },
-  { key: 'mouthCornerSoftMaxLength', label: '嘴巴软上限', min: 30, max: 160, step: 2 },
+  { key: 'mouthCornerGrabRadius', label: '嘴角命中', min: 18, max: 60, step: 1 },
+  { key: 'mouthCornerSoftMaxLength', label: '嘴角软上限', min: 30, max: 140, step: 2 },
   { key: 'earGrabRadius', label: '耳朵命中', min: 20, max: 78, step: 1 },
   { key: 'hairGrabRadius', label: '头发命中', min: 24, max: 88, step: 1 },
   { key: 'facePartReleaseSpring', label: '五官回弹', min: 80, max: 1600, step: 20 },
@@ -188,9 +187,9 @@ const SPEECH_POOL = {
   noseMid: ['鼻子要变长了！', '这不是把手。', '轻一点轻一点。'],
   noseStrong: ['鼻子快飞了！', '要弹了！', '鼻梁撑住！'],
   noseRelease: ['啵！', '鼻子回位。', '弹回来了。'],
-  mouthGrab: ['嘴巴？', '别扯嘴！', '笑不出来了。'],
+  mouthGrab: ['嘴角？', '别扯嘴！', '笑不出来了。'],
   mouthMid: ['嘴要歪了！', '这表情合理吗？', '有点离谱。'],
-  mouthStrong: ['嘴巴撑住！', '要裂开了！', '快松手！'],
+  mouthStrong: ['嘴角撑住！', '要裂开了！', '快松手！'],
   mouthRelease: ['啪！', '嘴回来了。', '表情复原。'],
   earGrab: ['耳朵也拽？', '听见了听见了！', '别拉耳朵。'],
   earMid: ['耳朵要变大了！', '耳朵在报警。', '有点痒！'],
@@ -509,9 +508,13 @@ const state = {
     star: false,
     mustache: false,
     hat: false,
-    sparkle: false
+    sparkle: false,
+    bow: false,
+    earring: false,
+    crown: false
   },
-  uiPartHint: 'mouth',
+  unlockedDecors: {},
+  uiPartHint: 'tongue',
   uiSignature: '',
   sessionSignature: '',
 
@@ -529,28 +532,31 @@ const state = {
 };
 
 const DECOR_OPTIONS = [
-  { key: 'glasses', label: '软糖眼镜' },
-  { key: 'blush', label: '蜜桃腮红' },
-  { key: 'star', label: '星星贴' },
-  { key: 'mustache', label: '奶油胡子' },
-  { key: 'hat', label: '布丁帽' },
-  { key: 'sparkle', label: '闪闪光' }
+  { key: 'blush', label: '蜜桃腮红', icon: '🌸', cost: 0, defaultUnlocked: true },
+  { key: 'mustache', label: '奶油胡子', icon: '👨', cost: 0, defaultUnlocked: true },
+  { key: 'glasses', label: '软糖眼镜', icon: '👓', cost: 40 },
+  { key: 'star', label: '星星贴', icon: '⭐', cost: 30 },
+  { key: 'sparkle', label: '闪闪光', icon: '✨', cost: 35 },
+  { key: 'hat', label: '布丁帽', icon: '🎩', cost: 60 },
+  { key: 'bow', label: '蝴蝶结', icon: '🎀', cost: 50 },
+  { key: 'earring', label: '小耳环', icon: '💎', cost: 45 },
+  { key: 'crown', label: '水晶冠', icon: '👑', cost: 100 }
 ];
 
 const QUEST_DECK = [
-  { key: 'mouth3', part: 'mouth', label: '嘴巴三连拽', target: 3, minPull: 0.18, reward: 190 },
+  { key: 'tongue3', part: 'tongue', label: '舌头三连弹', target: 3, minPull: 0.34, reward: 180 },
   { key: 'cheek2', part: 'cheek', label: '脸颊左右拽', target: 2, minPull: 0.32, reward: 150 },
   { key: 'nose1', part: 'nose', label: '鼻尖拉到位', target: 1, minPull: 0.52, reward: 130 },
-  { key: 'mouthWide', part: 'mouth', label: '嘴巴变形秀', target: 2, minPull: 0.32, reward: 170 },
+  { key: 'mouth2', part: 'mouth', label: '嘴角变形秀', target: 2, minPull: 0.38, reward: 160 },
   { key: 'ear2', part: 'ear', label: '耳朵弹回来', target: 2, minPull: 0.36, reward: 145 },
   { key: 'hair1', part: 'hair', label: '头发飞起来', target: 1, minPull: 0.46, reward: 120 }
 ];
 
 const PART_SCORE_MULTIPLIER = {
-  tongue: 1,
+  tongue: 1.18,
   cheek: 1,
   nose: 0.95,
-  mouth: 1.18,
+  mouth: 1.06,
   ear: 0.98,
   hair: 0.96
 };
@@ -570,6 +576,14 @@ function restorePlayerState() {
         state.decor[key] = Boolean(saved.decor[key]);
       });
     }
+    if (saved.unlockedDecors && typeof saved.unlockedDecors === 'object') {
+      Object.keys(state.unlockedDecors || {}).forEach((k) => {
+        state.unlockedDecors[k] = Boolean(saved.unlockedDecors[k]);
+      });
+      Object.keys(saved.unlockedDecors).forEach((k) => {
+        state.unlockedDecors[k] = Boolean(saved.unlockedDecors[k]);
+      });
+    }
   } catch (error) {
     // 本地存档不可用时直接使用默认状态。
   }
@@ -583,7 +597,8 @@ function savePlayerState() {
       bestScore: state.bestScore,
       bestCombo: state.bestCombo,
       soundOn: state.soundOn,
-      decor: state.decor
+      decor: state.decor,
+      unlockedDecors: state.unlockedDecors
     }));
   } catch (error) {
     // 无痕模式或权限限制时不影响游玩。
@@ -659,7 +674,8 @@ function showStartMenu() {
   if (startOverlayEl) startOverlayEl.hidden = false;
   if (resultOverlayEl) resultOverlayEl.hidden = true;
   toggleDebug(false);
-  toggleDecor(false);
+  var bar = document.getElementById('costumeBar');
+  if (bar) { bar.style.display = 'flex'; state.decorOpen = true; }
   updateSessionHud(true);
 }
 
@@ -751,17 +767,16 @@ function recordRelease(partKey, power, x, y) {
 }
 
 function partKeyForUi(part) {
-  if (!part) return state.uiPartHint || 'mouth';
+  if (!part) return state.uiPartHint || 'tongue';
   if (part.type === 'tongue') return 'tongue';
   if (part.type === 'cheek') return 'cheek';
   if (part.type === 'facePart') {
     if (part.key === 'nose') return 'nose';
     if (part.key === 'hairTop') return 'hair';
     if (part.key === 'earLeft' || part.key === 'earRight') return 'ear';
-    if (isMouthPartKey(part.key)) return 'mouth';
     return 'mouth';
   }
-  return state.uiPartHint || 'mouth';
+  return state.uiPartHint || 'tongue';
 }
 
 function partLabelForUi(part) {
@@ -772,10 +787,10 @@ function partLabelForUi(part) {
 function partLabelFromTabKey(key) {
   if (key === 'cheek') return '脸颊';
   if (key === 'nose') return '鼻子';
-  if (key === 'mouth') return '嘴巴';
+  if (key === 'mouth') return '嘴角';
   if (key === 'ear') return '耳朵';
   if (key === 'hair') return '头发';
-  return '嘴巴';
+  return '舌头';
 }
 
 function moodForUi(pull) {
@@ -816,8 +831,8 @@ function updateInteractionHud() {
   const isHolding = Boolean(state.activePart) && state.pointer.active && holdingPhase;
   const displayPercent = isHolding ? pullPercent : Math.round(state.satisfaction);
 
-  let title = activeKey === 'mouth' ? '拽嘴巴' : `试试${label}`;
-  let detail = activeKey === 'mouth' ? '点住嘴巴，往外拽，松手回弹' : `${label}也会软软弹回`;
+  let title = activeKey === 'tongue' ? '拽舌头' : `试试${label}`;
+  let detail = activeKey === 'tongue' ? '拉长，松手，回弹' : `${label}也会软软弹回`;
   if (isHolding) {
     title = `正在拽${label}`;
     detail = pullPercent > 0
@@ -1105,7 +1120,7 @@ function facePartBase(key, pose = computeFacePose()) {
   if (key === 'hairTop') {
     return { x: pose.cx - pose.r * 0.04, y: pose.cy - pose.r * 0.78, r: pose.r, side: 0 };
   }
-  const side = isMouthPartKey(key) && key === 'mouthLeft' ? -1 : 1;
+  const side = key === 'mouthLeft' ? -1 : 1;
   return {
     x: pose.cx + side * pose.r * 0.25,
     y: pose.cy + pose.r * 0.34,
@@ -1168,10 +1183,6 @@ function facePartSpeechPrefix(key) {
   if (key === 'earLeft' || key === 'earRight') return 'ear';
   if (key === 'hairTop') return 'hair';
   return 'mouth';
-}
-
-function isMouthPartKey(key) {
-  return key === 'mouthLeft' || key === 'mouthRight';
 }
 
 function tongueRewardPoint() {
@@ -1289,22 +1300,15 @@ function setPhase(next) {
     const part = activeFacePart();
     const prefix = facePartSpeechPrefix(state.activePart?.key);
     const power = part ? part.maxPull : 0.35;
-    const partKey = partKeyForUi(state.activePart);
-    const mouthPrimary = partKey === 'mouth';
     sayFromPool(`${prefix}Release`);
-    playReleaseSfx(power * (mouthPrimary ? 0.96 : 0.82));
+    playReleaseSfx(power * 0.82);
     pulseHaptics('release', power);
     state.releasePunch.age = 0;
-    state.releasePunch.power = clamp(power * (mouthPrimary ? 0.86 : 0.72), 0.14, mouthPrimary ? 0.96 : 0.86);
+    state.releasePunch.power = clamp(power * 0.72, 0.14, 0.86);
     spawnFacePartReleaseBurst();
     const point = facePartRewardPoint();
-    addSatisfaction(
-      mouthPrimary ? 6 + power * 13 : 3 + power * 8,
-      point.x,
-      point.y,
-      mouthPrimary ? '爽感' : '整活'
-    );
-    recordRelease(partKey, power, point.x, point.y);
+    addSatisfaction(3 + power * 8, point.x, point.y, '整活');
+    recordRelease(partKeyForUi(state.activePart), power, point.x, point.y);
   }
   if (next === 'FacePartSettle') {
     const part = activeFacePart();
@@ -1384,40 +1388,8 @@ function hitCheek(point) {
   return best;
 }
 
-function hitMouthArea(point, pose = computeFacePose()) {
-  const leftBase = facePartBase('mouthLeft', pose);
-  const rightBase = facePartBase('mouthRight', pose);
-  const left = state.faceParts.mouthLeft;
-  const right = state.faceParts.mouthRight;
-  const leftX = leftBase.x + left.x;
-  const leftY = leftBase.y + left.y;
-  const rightX = rightBase.x + right.x;
-  const rightY = rightBase.y + right.y;
-  const centerX = (leftX + rightX) * 0.5;
-  const centerY = (leftY + rightY) * 0.5;
-  const isTouch = state.pointer.kind === 'touch' || state.pointer.kind === 'pen';
-  const halfW = Math.max(pose.r * 0.32, Math.abs(rightX - leftX) * 0.64);
-  const halfH = pose.r * (isTouch ? 0.135 : 0.1);
-  const nx = (point.x - centerX) / Math.max(1, halfW);
-  const ny = (point.y - centerY) / Math.max(1, halfH);
-  if (nx * nx + ny * ny > 1) return { hit: false };
-
-  const key = point.x < centerX ? 'mouthLeft' : 'mouthRight';
-  const handleX = key === 'mouthLeft' ? leftX : rightX;
-  const handleY = key === 'mouthLeft' ? leftY : rightY;
-  return {
-    hit: true,
-    dist: length(point.x - handleX, point.y - handleY),
-    key,
-    mouthArea: true
-  };
-}
-
 function hitFacePart(point) {
   const pose = computeFacePose();
-  const mouthHit = hitMouthArea(point, pose);
-  if (mouthHit.hit) return mouthHit;
-
   let best = { hit: false, dist: Infinity, key: null };
   Object.keys(state.faceParts).forEach((key) => {
     const base = facePartBase(key, pose);
@@ -1441,6 +1413,12 @@ function updateHoverPart(point) {
     return;
   }
 
+  const tongueHit = hitTongue(point);
+  if (tongueHit.hit) {
+    state.hoverPart = { type: 'tongue', side: 0 };
+    return;
+  }
+
   const facePartHit = hitFacePart(point);
   if (facePartHit.hit) {
     state.hoverPart = { type: 'facePart', key: facePartHit.key };
@@ -1453,14 +1431,6 @@ function updateHoverPart(point) {
     return;
   }
 
-  if (ENABLE_TONGUE_DRAG) {
-    const tongueHit = hitTongue(point);
-    if (tongueHit.hit) {
-      state.hoverPart = { type: 'tongue', side: 0 };
-      return;
-    }
-  }
-
   state.hoverPart = null;
 }
 
@@ -1469,6 +1439,33 @@ function onPointerDown(event) {
   const point = pointerToCanvas(event);
   state.pointer = { x: point.x, y: point.y, active: true, kind: event.pointerType || 'mouse' };
   state.hoverPart = null;
+
+  const result = hitTongue(point);
+  if (result.hit) {
+    state.activePart = { type: 'tongue', side: 0 };
+
+    // 抓握偏移：如果点中舌身，把抓点稍微滑向舌尖 40%（§8）
+    if (result.snapToTip) {
+      state.dragOffset.x = 0;
+      state.dragOffset.y = 0;
+    } else {
+      const anchor = currentRenderAnchor();
+      const tipX = anchor.x + state.tip.x;
+      const tipY = anchor.y + state.tip.y;
+      const slideT = 0.4; // 从命中点向 tip 方向滑 40%
+      const grabX = lerp(point.x, tipX, slideT);
+      const grabY = lerp(point.y, tipY, slideT);
+      state.dragOffset.x = tipX - grabX;
+      state.dragOffset.y = tipY - grabY;
+    }
+
+    setPhase('Grabbed');
+    canvas.classList.add('dragging');
+    canvas.setPointerCapture(event.pointerId);
+    hideGestureHint();
+    updateDragTarget(point);
+    return;
+  }
 
   const facePartHit = hitFacePart(point);
   if (facePartHit.hit) {
@@ -1486,50 +1483,18 @@ function onPointerDown(event) {
   }
 
   const cheekHit = hitCheek(point);
-  if (cheekHit.hit) {
-    const cheek = state.cheeks[cheekKey(cheekHit.side)];
-    const base = cheekBase(cheekHit.side);
-    state.activePart = { type: 'cheek', side: cheekHit.side };
-    state.cheekDragOffset.x = base.x + cheek.x - point.x;
-    state.cheekDragOffset.y = base.y + cheek.y - point.y;
-    setPhase('CheekGrabbed');
-    canvas.classList.add('dragging');
-    canvas.setPointerCapture(event.pointerId);
-    hideGestureHint();
-    updateCheekTarget(point);
-    return;
-  }
+  if (!cheekHit.hit) return;
 
-  if (ENABLE_TONGUE_DRAG) {
-    const result = hitTongue(point);
-    if (result.hit) {
-      state.activePart = { type: 'tongue', side: 0 };
-
-      // 抓握偏移：如果点中舌身，把抓点稍微滑向舌尖 40%（§8）
-      if (result.snapToTip) {
-        state.dragOffset.x = 0;
-        state.dragOffset.y = 0;
-      } else {
-        const anchor = currentRenderAnchor();
-        const tipX = anchor.x + state.tip.x;
-        const tipY = anchor.y + state.tip.y;
-        const slideT = 0.4; // 从命中点向 tip 方向滑 40%
-        const grabX = lerp(point.x, tipX, slideT);
-        const grabY = lerp(point.y, tipY, slideT);
-        state.dragOffset.x = tipX - grabX;
-        state.dragOffset.y = tipY - grabY;
-      }
-
-      setPhase('Grabbed');
-      canvas.classList.add('dragging');
-      canvas.setPointerCapture(event.pointerId);
-      hideGestureHint();
-      updateDragTarget(point);
-      return;
-    }
-  }
-
-  state.pointer.active = false;
+  const cheek = state.cheeks[cheekKey(cheekHit.side)];
+  const base = cheekBase(cheekHit.side);
+  state.activePart = { type: 'cheek', side: cheekHit.side };
+  state.cheekDragOffset.x = base.x + cheek.x - point.x;
+  state.cheekDragOffset.y = base.y + cheek.y - point.y;
+  setPhase('CheekGrabbed');
+  canvas.classList.add('dragging');
+  canvas.setPointerCapture(event.pointerId);
+  hideGestureHint();
+  updateCheekTarget(point);
 }
 
 function onPointerMove(event) {
@@ -2591,6 +2556,62 @@ function drawDecorations(cx, cy, r) {
     });
     ctx.restore();
   }
+
+  if (state.decor.bow) {
+    ctx.save();
+    var bx = cx, by = cy - r * 0.62;
+    ctx.fillStyle = '#ff79a7';
+    ctx.beginPath();
+    ctx.ellipse(bx - r * 0.1, by, r * 0.09, r * 0.05, -0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(bx + r * 0.1, by, r * 0.09, r * 0.05, 0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ff4081';
+    ctx.beginPath();
+    ctx.arc(bx, by + r * 0.01, r * 0.028, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  if (state.decor.earring) {
+    ctx.save();
+    [-1, 1].forEach(function(side) {
+      var ex = cx + side * r * 0.58, ey = cy - r * 0.02;
+      ctx.strokeStyle = '#ffd56a';
+      ctx.lineWidth = Math.max(1.5, r * 0.008);
+      ctx.beginPath();
+      ctx.moveTo(ex - side * r * 0.02, ey - r * 0.06);
+      ctx.lineTo(ex, ey);
+      ctx.stroke();
+      ctx.fillStyle = '#49b7aa';
+      ctx.beginPath();
+      ctx.arc(ex, ey, r * 0.03, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.restore();
+  }
+
+  if (state.decor.crown) {
+    ctx.save();
+    ctx.translate(cx, cy - r * 0.78);
+    ctx.fillStyle = '#ffd56a';
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.22, 0);
+    ctx.lineTo(-r * 0.18, -r * 0.14);
+    ctx.lineTo(-r * 0.06, -r * 0.04);
+    ctx.lineTo(0, -r * 0.18);
+    ctx.lineTo(r * 0.06, -r * 0.04);
+    ctx.lineTo(r * 0.18, -r * 0.14);
+    ctx.lineTo(r * 0.22, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#ffb74d';
+    ctx.beginPath();
+    ctx.arc(0, -r * 0.18, r * 0.025, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
 }
 
 function drawStar(cx, cy, radius, color) {
@@ -2837,7 +2858,7 @@ function drawEyebrows(cx, cy, r) {
 
 function mouthMetrics(cx, cy, r) {
   const mouthY = cy + r * 0.335;
-  // 嘴巴朝当前主拉扯方向变形。
+  // 嘴角朝舌尖方向拉
   const vector = getExpressionVector();
   const dirLen = length(vector.x, vector.y) || 1;
   const pullX = (vector.x / dirLen) * vector.pull * config.mouthDeformAmount;
@@ -2942,10 +2963,6 @@ function useExportedRestMouth(pull) {
   return pull < 0.18 && !isTonguePhase();
 }
 
-function useIdleSmileMouth(pull) {
-  return state.phase === 'Idle' && !state.activePart && pull < 0.08;
-}
-
 function withExportedMouthTransform(pose, draw) {
   ctx.save();
   ctx.translate(pose.x, pose.y);
@@ -2971,90 +2988,10 @@ function drawExportedMouthForeground(pose) {
   });
 }
 
-function drawIdleSmileMouthBase(cx, r, metrics) {
-  const x = cx + metrics.cornerCenterX;
-  const y = metrics.mouthY - r * 0.006 + metrics.cornerCenterY;
-  const w = r * 0.225;
-  const h = r * 0.105;
-
-  ctx.save();
-  ctx.fillStyle = 'rgba(108, 47, 67, 0.045)';
-  ctx.beginPath();
-  ctx.ellipse(x, y + h * 0.52, w * 0.92, h * 0.42, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  const slot = ctx.createLinearGradient(x, y + h * 0.02, x, y + h * 0.86);
-  slot.addColorStop(0, 'rgba(38, 11, 29, 0.72)');
-  slot.addColorStop(0.58, 'rgba(82, 28, 51, 0.58)');
-  slot.addColorStop(1, 'rgba(138, 61, 78, 0.3)');
-  ctx.fillStyle = slot;
-  ctx.beginPath();
-  ctx.moveTo(x - w * 0.64, y + h * 0.12);
-  ctx.quadraticCurveTo(x, y + h * 0.28, x + w * 0.64, y + h * 0.12);
-  ctx.quadraticCurveTo(x, y + h * 0.86, x - w * 0.64, y + h * 0.12);
-  ctx.closePath();
-  ctx.fill();
-
-  const blush = ctx.createLinearGradient(x, y - h, x, y + h);
-  blush.addColorStop(0, 'rgba(255, 211, 188, 0)');
-  blush.addColorStop(1, 'rgba(255, 145, 141, 0.1)');
-  ctx.strokeStyle = blush;
-  ctx.lineWidth = Math.max(1.6, r * 0.01);
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(x - w * 0.72, y + h * 0.19);
-  ctx.quadraticCurveTo(x, y + h * 0.62, x + w * 0.72, y + h * 0.19);
-  ctx.stroke();
-  ctx.restore();
-}
-
-function drawIdleSmileMouthForeground(cx, r, mouthY, cornerCenterX, cornerCenterY) {
-  const x = cx + cornerCenterX;
-  const y = mouthY - r * 0.006 + cornerCenterY;
-  const w = r * 0.242;
-  const h = r * 0.105;
-
-  ctx.save();
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-
-  ctx.strokeStyle = 'rgba(54, 18, 39, 0.82)';
-  ctx.lineWidth = Math.max(2.4, r * 0.013);
-  ctx.beginPath();
-  ctx.moveTo(x - w * 0.7, y + h * 0.1);
-  ctx.quadraticCurveTo(x, y + h * 0.28, x + w * 0.7, y + h * 0.1);
-  ctx.stroke();
-
-  ctx.strokeStyle = 'rgba(92, 35, 55, 0.42)';
-  ctx.lineWidth = Math.max(1.7, r * 0.008);
-  ctx.beginPath();
-  ctx.moveTo(x - w * 0.5, y + h * 0.55);
-  ctx.quadraticCurveTo(x, y + h * 0.78, x + w * 0.5, y + h * 0.55);
-  ctx.stroke();
-
-  ctx.strokeStyle = 'rgba(255, 218, 190, 0.45)';
-  ctx.lineWidth = Math.max(1, r * 0.0045);
-  ctx.beginPath();
-  ctx.moveTo(x - w * 0.38, y + h * 0.6);
-  ctx.quadraticCurveTo(x, y + h * 0.72, x + w * 0.38, y + h * 0.6);
-  ctx.stroke();
-
-  ctx.fillStyle = 'rgba(255, 160, 148, 0.16)';
-  ctx.beginPath();
-  ctx.ellipse(x - w * 0.9, y + h * 0.06, r * 0.02, r * 0.011, -0.15, 0, Math.PI * 2);
-  ctx.ellipse(x + w * 0.9, y + h * 0.06, r * 0.02, r * 0.011, 0.15, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-}
-
 function drawMouthCavity(cx, cy, r) {
   const metrics = mouthMetrics(cx, cy, r);
   const { x, y, w, h, pull } = mouthOpeningGeometry(cx, r, metrics);
   const tongueMode = Boolean(metrics.tongueMode);
-  if (useIdleSmileMouth(pull)) {
-    drawIdleSmileMouthBase(cx, r, metrics);
-    return;
-  }
   if (useExportedRestMouth(pull)) {
     drawExportedMouthBase(exportedMouthPose(cx, r, metrics));
     return;
@@ -3117,9 +3054,17 @@ function drawMouthForeground(cx, cy, r) {
     || state.activePart?.key === 'mouthRight'
     || cornerPull > 0.035;
 
-  drawCleanMouthForeground(cx, mouthY, r, open, pullX, cornerCenterX, cornerCenterY, tongueMode);
-  if (!mouthCornerActive) return;
+  if (state.activePart?.type === 'tongue') {
+    drawCleanMouthForeground(cx, mouthY, r, open, pullX, cornerCenterX, cornerCenterY, tongueMode);
+    return;
+  }
 
+  if (!mouthCornerActive) {
+    drawCleanMouthForeground(cx, mouthY, r, open, pullX, cornerCenterX, cornerCenterY, tongueMode);
+    return;
+  }
+
+  // 嘴角交互只保留局部提示，不再画整条嘴唇线，避免和舌头拉伸混在一起。
   ctx.save();
   drawMouthCornerHints(cx, cy, r);
   ctx.restore();
@@ -3128,10 +3073,6 @@ function drawMouthForeground(cx, cy, r) {
 function drawCleanMouthForeground(cx, mouthY, r, open, pullX, cornerCenterX, cornerCenterY, tongueMode = false) {
   const geom = mouthOpeningGeometry(cx, r, { mouthY, open, pullX, cornerCenterX, cornerCenterY, tongueMode });
   const { x, y, w, h, pull } = geom;
-  if (useIdleSmileMouth(pull)) {
-    drawIdleSmileMouthForeground(cx, r, mouthY, cornerCenterX, cornerCenterY);
-    return;
-  }
   if (useExportedRestMouth(pull)) {
     drawExportedMouthForeground(exportedMouthPose(cx, r, { mouthY, open, pullX, cornerCenterX, cornerCenterY, tongueMode }));
     return;
@@ -3355,9 +3296,9 @@ function drawTongueShape({ shadow }) {
   const dirY = dy / len;
   const nx = -dirY;
   const ny = dirX;
-  const rootEmbed = Math.min(config.tongueRootInset * 0.35 + len * 0.012, 8);
-  const ax = anchorX - dirX * rootEmbed;
-  const ay = anchorY - dirY * rootEmbed;
+  const rootInset = Math.min(config.tongueRootInset * 0.35, Math.max(0, len * 0.12));
+  const ax = anchorX + dirX * rootInset;
+  const ay = anchorY + dirY * rootInset;
   let tipX = anchorX + state.tip.x;
   let tipY = anchorY + state.tip.y;
   const releaseShakeT = state.phase === 'Settle'
@@ -3451,17 +3392,17 @@ function drawTongueShape({ shadow }) {
 
   // 填充粉色舌身
   ctx.save();
-  const bodyPath = new Path2D();
+  ctx.beginPath();
   for (let i = 0; i <= segs; i += 1) {
     const pt = points[i];
     const x = pt.x + pt.nx * pt.w * 0.5;
     const y = pt.y + pt.ny * pt.w * 0.5;
-    if (i === 0) bodyPath.moveTo(x, y);
-    else bodyPath.lineTo(x, y);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
   }
   const tipPoint = points[segs];
   const tipRound = tipPoint.w * lerp(0.42, 0.32, clamp(pull, 0, 1));
-  bodyPath.bezierCurveTo(
+  ctx.bezierCurveTo(
     tipPoint.x + tipPoint.nx * tipPoint.w * 0.5 + tipPoint.tx * tipRound,
     tipPoint.y + tipPoint.ny * tipPoint.w * 0.5 + tipPoint.ty * tipRound,
     tipPoint.x - tipPoint.nx * tipPoint.w * 0.5 + tipPoint.tx * tipRound,
@@ -3473,19 +3414,9 @@ function drawTongueShape({ shadow }) {
     const pt = points[i];
     const x = pt.x - pt.nx * pt.w * 0.5;
     const y = pt.y - pt.ny * pt.w * 0.5;
-    bodyPath.lineTo(x, y);
+    ctx.lineTo(x, y);
   }
-  const rootPoint = points[0];
-  const rootRound = rootPoint.w * 0.42;
-  bodyPath.bezierCurveTo(
-    rootPoint.x - rootPoint.nx * rootPoint.w * 0.5 - rootPoint.tx * rootRound,
-    rootPoint.y - rootPoint.ny * rootPoint.w * 0.5 - rootPoint.ty * rootRound,
-    rootPoint.x + rootPoint.nx * rootPoint.w * 0.5 - rootPoint.tx * rootRound,
-    rootPoint.y + rootPoint.ny * rootPoint.w * 0.5 - rootPoint.ty * rootRound,
-    rootPoint.x + rootPoint.nx * rootPoint.w * 0.5,
-    rootPoint.y + rootPoint.ny * rootPoint.w * 0.5
-  );
-  bodyPath.closePath();
+  ctx.closePath();
 
   const grd = ctx.createLinearGradient(ax + nx * wRoot * 0.35, ay + ny * wRoot * 0.35, tipX - nx * wTip * 0.4, tipY - ny * wTip * 0.4);
   grd.addColorStop(0, state.overPull > 0 ? '#f15383' : '#ff7aa0');
@@ -3493,19 +3424,21 @@ function drawTongueShape({ shadow }) {
   grd.addColorStop(0.76, state.overPull > 0 ? '#d2356c' : '#ff7fa3');
   grd.addColorStop(1, state.overPull > 0 ? '#bf2f66' : '#ff9ab4');
   ctx.fillStyle = grd;
-  ctx.fill(bodyPath);
+  ctx.fill();
 
   const rootFold = ctx.createRadialGradient(ax, ay - wRoot * 0.08, 0, ax, ay + wRoot * 0.12, wRoot * 0.9);
   rootFold.addColorStop(0, 'rgba(80, 18, 42, 0.18)');
   rootFold.addColorStop(0.48, 'rgba(255, 110, 150, 0.08)');
   rootFold.addColorStop(1, 'rgba(255, 110, 150, 0)');
-  ctx.save();
-  ctx.clip(bodyPath);
   ctx.fillStyle = rootFold;
   ctx.beginPath();
   ctx.ellipse(ax, ay + wRoot * 0.14, wRoot * 0.58, wRoot * 0.34, Math.atan2(dirY, dirX), 0, Math.PI * 2);
   ctx.fill();
-  ctx.restore();
+
+  ctx.strokeStyle = state.overPull > 0 ? 'rgba(126, 22, 58, 0.48)' : 'rgba(147, 42, 76, 0.26)';
+  ctx.lineWidth = Math.max(1.2, wMid * 0.055);
+  ctx.lineJoin = 'round';
+  ctx.stroke();
 
   const sideShade = ctx.createLinearGradient(ax - nx * wRoot, ay - ny * wRoot, ax + nx * wRoot, ay + ny * wRoot);
   sideShade.addColorStop(0, 'rgba(122, 28, 62, 0.12)');
@@ -3513,12 +3446,7 @@ function drawTongueShape({ shadow }) {
   sideShade.addColorStop(0.7, 'rgba(255, 232, 239, 0.14)');
   sideShade.addColorStop(1, 'rgba(255, 232, 239, 0.22)');
   ctx.fillStyle = sideShade;
-  ctx.fill(bodyPath);
-
-  ctx.strokeStyle = state.overPull > 0 ? 'rgba(126, 22, 58, 0.48)' : 'rgba(147, 42, 76, 0.26)';
-  ctx.lineWidth = Math.max(1.2, wMid * 0.055);
-  ctx.lineJoin = 'round';
-  ctx.stroke(bodyPath);
+  ctx.fill();
 
   // 中线柔光
   ctx.beginPath();
@@ -3659,55 +3587,46 @@ function drawTongueSurfaceDetails(points, pull) {
 }
 
 function drawIdleTongueNub(ax, ay) {
-  // 待机舌头藏进嘴缝里，只露出一个软软的可拖拽提示。
+  // 待机舌头必须看起来是从嘴里伸出来的，而不是贴在嘴外的小胶囊。
   const tucked = state.phase !== 'Idle';
   const now = state.frameTime || performance.now();
   const idleT = state.idleTimer;
-  if (!tucked) {
-    drawIdleTongueInsideMouth(ax, ay, idleT);
-    return;
-  }
   const vector = getExpressionVector();
   const facePull = state.activePart?.type === 'tongue' ? 0 : clamp(vector.pull, 0, 1);
   const idleBreath = state.phase === 'Idle' ? (Math.sin(idleT * 2.25) + 1) * 0.5 : 0;
   const faceFlutter = facePull > 0.05 ? Math.sin(now * 0.024) * facePull : 0;
   const side = tucked
     ? faceFlutter * 2.6 + clamp(vector.x / Math.max(1, state.headRadius), -1, 1) * facePull * 2.2
-    : Math.sin(idleT * 3.6) * 0.35;
+    : Math.sin(idleT * 4.3) * 0.8;
   const r = state.headRadius;
-  const rootY = ay - r * 0.038;
-  const tipY = ay + r * (0.006 + idleBreath * 0.002);
+  const rootY = ay - r * 0.022;
+  const tipY = ay + r * (0.13 + idleBreath * 0.01);
   const x = ax + side;
-  const rootHalf = r * (tucked ? 0.044 : 0.052);
-  const bellyHalf = r * (tucked ? 0.056 : 0.062);
-  const tipHalf = r * (tucked ? 0.044 : 0.036);
+  const rootHalf = r * (tucked ? 0.045 : 0.06);
+  const bellyHalf = r * (tucked ? 0.058 : 0.078);
+  const tipHalf = r * (tucked ? 0.045 : 0.062);
 
   ctx.save();
-  if (!tucked) {
-    ctx.beginPath();
-    ctx.ellipse(ax, ay - r * 0.004, r * 0.108, r * 0.028, 0, 0, Math.PI * 2);
-    ctx.clip();
-  }
-  ctx.shadowColor = 'rgba(86, 27, 52, 0.08)';
-  ctx.shadowBlur = r * 0.008;
-  ctx.shadowOffsetY = r * 0.004;
+  ctx.shadowColor = 'rgba(86, 27, 52, 0.18)';
+  ctx.shadowBlur = r * 0.018;
+  ctx.shadowOffsetY = r * 0.012;
 
   ctx.beginPath();
   ctx.moveTo(x - rootHalf, rootY);
   ctx.bezierCurveTo(
     x - bellyHalf,
-    ay - r * 0.01,
+    ay + r * 0.024,
     x - tipHalf,
-    tipY - r * 0.01,
+    tipY - r * 0.02,
     x - tipHalf * 0.36,
     tipY + r * 0.004
   );
   ctx.quadraticCurveTo(x, tipY + r * 0.03, x + tipHalf * 0.36, tipY + r * 0.004);
   ctx.bezierCurveTo(
     x + tipHalf,
-    tipY - r * 0.01,
+    tipY - r * 0.02,
     x + bellyHalf,
-    ay - r * 0.01,
+    ay + r * 0.024,
     x + rootHalf,
     rootY
   );
@@ -3727,56 +3646,18 @@ function drawIdleTongueNub(ax, ay) {
   ctx.stroke();
 
   ctx.strokeStyle = 'rgba(255, 222, 232, 0.58)';
-  ctx.lineWidth = Math.max(1.2, r * 0.009);
+  ctx.lineWidth = Math.max(1.4, r * 0.012);
   ctx.lineCap = 'round';
   ctx.beginPath();
-  ctx.moveTo(x, ay - r * 0.018);
-  ctx.quadraticCurveTo(x + side * 0.03, ay - r * 0.006, x, tipY - r * 0.012);
+  ctx.moveTo(x, ay + r * 0.018);
+  ctx.quadraticCurveTo(x + side * 0.12, ay + r * 0.078, x, tipY + r * 0.002);
   ctx.stroke();
 
   ctx.fillStyle = 'rgba(255, 236, 242, 0.58)';
   ctx.beginPath();
-  ctx.ellipse(x - bellyHalf * 0.2, ay - r * 0.01, bellyHalf * 0.1, r * 0.006, -0.45, 0, Math.PI * 2);
+  ctx.ellipse(x - bellyHalf * 0.34, ay + r * 0.044, bellyHalf * 0.18, r * 0.014, -0.45, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.restore();
-}
-
-function drawIdleTongueInsideMouth(ax, ay, idleT) {
-  const r = state.headRadius;
-  const x = ax + Math.sin(idleT * 3.2) * 0.22;
-  const y = ay + r * 0.014;
-  const breath = (Math.sin(idleT * 2.15) + 1) * 0.5;
-
-  ctx.save();
-  ctx.beginPath();
-  ctx.moveTo(ax - r * 0.086, ay - r * 0.001);
-  ctx.quadraticCurveTo(ax, ay + r * 0.018, ax + r * 0.086, ay - r * 0.001);
-  ctx.quadraticCurveTo(ax, ay + r * 0.054, ax - r * 0.086, ay - r * 0.001);
-  ctx.closePath();
-  ctx.clip();
-
-  const g = ctx.createLinearGradient(x - r * 0.05, y - r * 0.018, x + r * 0.05, y + r * 0.022);
-  g.addColorStop(0, '#ff7fa1');
-  g.addColorStop(0.58, '#ff5f91');
-  g.addColorStop(1, '#ff92ad');
-  ctx.fillStyle = g;
-  ctx.beginPath();
-  ctx.ellipse(x, y + r * (0.001 + breath * 0.0015), r * 0.046, r * 0.02, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.strokeStyle = 'rgba(255, 226, 236, 0.56)';
-  ctx.lineWidth = Math.max(1, r * 0.004);
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(x, y - r * 0.012);
-  ctx.lineTo(x, y + r * 0.016);
-  ctx.stroke();
-
-  ctx.fillStyle = 'rgba(255, 238, 244, 0.58)';
-  ctx.beginPath();
-  ctx.ellipse(x - r * 0.02, y - r * 0.004, r * 0.012, r * 0.005, -0.35, 0, Math.PI * 2);
-  ctx.fill();
   ctx.restore();
 }
 
@@ -4114,15 +3995,15 @@ function exportPreset() {
     schemaVersion: 1,
     exportedAt: new Date().toISOString(),
     authorRole: 'visual_or_motion',
-    targetBuild: 'mouth-drag-main-v1',
-    partId: 'mouth_main',
+    targetBuild: 'tongue-prototype-v1',
+    partId: 'tongue_main',
     config
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `mouth-preset-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.json`;
+  a.download = `tongue-preset-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.json`;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -4130,49 +4011,119 @@ function exportPreset() {
   showSpeech('已导出 preset');
 }
 
-function buildDecorPanel() {
-  decorControlsEl.innerHTML = '';
-  DECOR_OPTIONS.forEach((option) => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'decor-option';
-    btn.textContent = option.label;
-    btn.dataset.decorKey = option.key;
-    btn.addEventListener('click', () => {
-      state.decor[option.key] = !state.decor[option.key];
-      btn.classList.toggle('is-on', state.decor[option.key]);
-      savePlayerState();
-      showSpeech(state.decor[option.key] ? `${option.label} 装上` : `${option.label} 拿下`);
-    });
-    btn.classList.toggle('is-on', state.decor[option.key]);
-    decorControlsEl.appendChild(btn);
+function initUnlockedDecors() {
+  DECOR_OPTIONS.forEach(function(opt) {
+    if (opt.defaultUnlocked && !(opt.key in (state.unlockedDecors || {}))) {
+      if (!state.unlockedDecors) state.unlockedDecors = {};
+      state.unlockedDecors[opt.key] = true;
+    }
   });
 }
 
-function refreshDecorPanel() {
-  decorControlsEl.querySelectorAll('.decor-option').forEach((btn) => {
-    const key = btn.dataset.decorKey;
-    btn.classList.toggle('is-on', Boolean(state.decor[key]));
+function isDecorUnlocked(key) {
+  var opt = DECOR_OPTIONS.find(function(o) { return o.key === key; });
+  if (opt && opt.cost === 0) return true;
+  return Boolean(state.unlockedDecors && state.unlockedDecors[key]);
+}
+
+function unlockDecor(key) {
+  var opt = DECOR_OPTIONS.find(function(o) { return o.key === key; });
+  if (!opt || isDecorUnlocked(key)) return;
+  if (state.coins < opt.cost) {
+    showSpeech('金币不够哦~');
+    return;
+  }
+  state.coins -= opt.cost;
+  if (!state.unlockedDecors) state.unlockedDecors = {};
+  state.unlockedDecors[key] = true;
+  savePlayerState();
+  refreshCostumeBar();
+  updateHud();
+  showSpeech(opt.label + ' 解锁啦！');
+}
+
+function buildCostumeBar() {
+  var scroll = document.getElementById('costumeScroll');
+  if (!scroll) return;
+  scroll.innerHTML = '';
+  DECOR_OPTIONS.forEach(function(opt) {
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'costume-item';
+    btn.dataset.decorKey = opt.key;
+    var unlocked = isDecorUnlocked(opt.key);
+    if (!unlocked) btn.classList.add('is-locked');
+    if (unlocked && state.decor[opt.key]) btn.classList.add('is-on');
+
+    var icon = document.createElement('span');
+    icon.className = 'costume-item-icon';
+    icon.textContent = opt.icon;
+    btn.appendChild(icon);
+
+    var name = document.createElement('span');
+    name.className = 'costume-item-name';
+    name.textContent = opt.label;
+    btn.appendChild(name);
+
+    if (!unlocked) {
+      var lock = document.createElement('span');
+      lock.className = 'costume-item-lock';
+      lock.textContent = '🔒';
+      btn.appendChild(lock);
+      var cost = document.createElement('span');
+      cost.className = 'costume-item-cost';
+      cost.textContent = opt.cost + '★';
+      btn.appendChild(cost);
+    }
+
+    btn.addEventListener('click', function() {
+      if (!isDecorUnlocked(opt.key)) {
+        unlockDecor(opt.key);
+        return;
+      }
+      state.decor[opt.key] = !state.decor[opt.key];
+      btn.classList.toggle('is-on', state.decor[opt.key]);
+      savePlayerState();
+      showSpeech(state.decor[opt.key] ? opt.label + ' 装上' : opt.label + ' 拿下');
+    });
+
+    scroll.appendChild(btn);
+  });
+}
+
+function refreshCostumeBar() {
+  var scroll = document.getElementById('costumeScroll');
+  if (!scroll) return;
+  scroll.querySelectorAll('.costume-item').forEach(function(btn) {
+    var key = btn.dataset.decorKey;
+    var unlocked = isDecorUnlocked(key);
+    btn.classList.toggle('is-locked', !unlocked);
+    btn.classList.toggle('is-on', unlocked && Boolean(state.decor[key]));
+    // Remove lock icon and cost on unlock
+    if (unlocked) {
+      var lockEl = btn.querySelector('.costume-item-lock');
+      if (lockEl) lockEl.remove();
+      var costEl = btn.querySelector('.costume-item-cost');
+      if (costEl) costEl.remove();
+    }
   });
 }
 
 function toggleDecor(force) {
+  var bar = document.getElementById('costumeBar');
+  if (!bar) return;
   state.decorOpen = typeof force === 'boolean' ? force : !state.decorOpen;
-  decorPanelEl.hidden = !state.decorOpen;
-  if (state.decorOpen) {
-    toggleDebug(false);
-    refreshDecorPanel();
-  }
+  bar.style.display = state.decorOpen ? 'flex' : 'none';
+  if (state.decorOpen) refreshCostumeBar();
 }
 
 function clearDecor() {
-  Object.keys(state.decor).forEach((key) => {
-    state.decor[key] = false;
-  });
-  refreshDecorPanel();
+  Object.keys(state.decor).forEach(function(key) { state.decor[key] = false; });
+  refreshCostumeBar();
   savePlayerState();
   showSpeech('清爽了。');
 }
+
 
 function toggleSound() {
   state.soundOn = !state.soundOn;
@@ -4248,21 +4199,21 @@ function resetPose(options = {}) {
 }
 
 function handlePartTabClick(event) {
-  const key = event.currentTarget.dataset.partTab || 'mouth';
+  const key = event.currentTarget.dataset.partTab || 'tongue';
   state.uiPartHint = key;
   updatePartTabs(key);
   const label = partLabelFromTabKey(key);
   const copy = key === 'cheek'
     ? '点脸颊两侧，往外拉会有果冻脸反馈'
     : key === 'mouth'
-      ? '点住嘴巴往外拽，嘴唇和表情会一起变形'
+      ? '点嘴角往外扯，表情会跟着变形'
       : key === 'ear'
         ? '点耳朵边缘往外拽，松手会弹回来'
         : key === 'hair'
           ? '点头发往上提，会有软软的拉伸'
           : key === 'nose'
             ? '点小鼻子往外拉，别太用力'
-            : '点住嘴巴往外拽，这是主爽感';
+            : '点嘴里的小舌头往外拽，这是主爽感';
   if (interactionTitleEl) interactionTitleEl.textContent = `试试拽${label}`;
   if (interactionDetailEl) interactionDetailEl.textContent = copy;
   showSpeech(copy);
@@ -4305,10 +4256,11 @@ function initEvents() {
 
 async function boot() {
   await loadRuntimeConfig();
+  initUnlockedDecors();
   restorePlayerState();
   fitCanvas();
   buildDebugPanel();
-  buildDecorPanel();
+  buildCostumeBar();
   state.quests = createQuestDeck();
   updateHud();
   updateSessionHud(true);
