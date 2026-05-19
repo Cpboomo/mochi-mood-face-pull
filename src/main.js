@@ -2926,9 +2926,17 @@ function drawIdleSmileMouthBase(cx, r, metrics) {
   const h = r * 0.058;
 
   ctx.save();
-  ctx.fillStyle = 'rgba(108, 47, 67, 0.06)';
+  ctx.fillStyle = 'rgba(108, 47, 67, 0.055)';
   ctx.beginPath();
   ctx.ellipse(x, y + h * 0.45, w * 0.78, h * 0.42, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  const slot = ctx.createLinearGradient(x, y - h * 0.2, x, y + h * 0.7);
+  slot.addColorStop(0, 'rgba(70, 26, 46, 0.18)');
+  slot.addColorStop(1, 'rgba(70, 26, 46, 0.08)');
+  ctx.fillStyle = slot;
+  ctx.beginPath();
+  ctx.ellipse(x, y + h * 0.22, w * 0.42, h * 0.15, 0, 0, Math.PI * 2);
   ctx.fill();
 
   const blush = ctx.createLinearGradient(x, y - h, x, y + h);
@@ -3596,7 +3604,7 @@ function drawTongueSurfaceDetails(points, pull) {
 }
 
 function drawIdleTongueNub(ax, ay) {
-  // 待机舌头只露出一小截，保持可拖拽提示，但整体表情仍是正常微笑。
+  // 待机舌头藏进嘴缝里，只露出一个软软的可拖拽提示。
   const tucked = state.phase !== 'Idle';
   const now = state.frameTime || performance.now();
   const idleT = state.idleTimer;
@@ -3608,34 +3616,39 @@ function drawIdleTongueNub(ax, ay) {
     ? faceFlutter * 2.6 + clamp(vector.x / Math.max(1, state.headRadius), -1, 1) * facePull * 2.2
     : Math.sin(idleT * 3.6) * 0.35;
   const r = state.headRadius;
-  const rootY = ay - r * 0.024;
-  const tipY = ay + r * (0.054 + idleBreath * 0.004);
+  const rootY = ay - r * 0.038;
+  const tipY = ay + r * (0.006 + idleBreath * 0.002);
   const x = ax + side;
-  const rootHalf = r * (tucked ? 0.044 : 0.066);
-  const bellyHalf = r * (tucked ? 0.056 : 0.078);
-  const tipHalf = r * (tucked ? 0.044 : 0.052);
+  const rootHalf = r * (tucked ? 0.044 : 0.052);
+  const bellyHalf = r * (tucked ? 0.056 : 0.062);
+  const tipHalf = r * (tucked ? 0.044 : 0.036);
 
   ctx.save();
-  ctx.shadowColor = 'rgba(86, 27, 52, 0.11)';
-  ctx.shadowBlur = r * 0.012;
-  ctx.shadowOffsetY = r * 0.007;
+  if (!tucked) {
+    ctx.beginPath();
+    ctx.ellipse(ax, ay - r * 0.004, r * 0.108, r * 0.028, 0, 0, Math.PI * 2);
+    ctx.clip();
+  }
+  ctx.shadowColor = 'rgba(86, 27, 52, 0.08)';
+  ctx.shadowBlur = r * 0.008;
+  ctx.shadowOffsetY = r * 0.004;
 
   ctx.beginPath();
   ctx.moveTo(x - rootHalf, rootY);
   ctx.bezierCurveTo(
     x - bellyHalf,
-    ay + r * 0.024,
+    ay - r * 0.01,
     x - tipHalf,
-    tipY - r * 0.016,
+    tipY - r * 0.01,
     x - tipHalf * 0.36,
     tipY + r * 0.004
   );
   ctx.quadraticCurveTo(x, tipY + r * 0.03, x + tipHalf * 0.36, tipY + r * 0.004);
   ctx.bezierCurveTo(
     x + tipHalf,
-    tipY - r * 0.016,
+    tipY - r * 0.01,
     x + bellyHalf,
-    ay + r * 0.024,
+    ay - r * 0.01,
     x + rootHalf,
     rootY
   );
@@ -3658,13 +3671,13 @@ function drawIdleTongueNub(ax, ay) {
   ctx.lineWidth = Math.max(1.2, r * 0.009);
   ctx.lineCap = 'round';
   ctx.beginPath();
-  ctx.moveTo(x, ay + r * 0.008);
-  ctx.quadraticCurveTo(x + side * 0.06, ay + r * 0.027, x, tipY - r * 0.008);
+  ctx.moveTo(x, ay - r * 0.018);
+  ctx.quadraticCurveTo(x + side * 0.03, ay - r * 0.006, x, tipY - r * 0.012);
   ctx.stroke();
 
   ctx.fillStyle = 'rgba(255, 236, 242, 0.58)';
   ctx.beginPath();
-  ctx.ellipse(x - bellyHalf * 0.28, ay + r * 0.012, bellyHalf * 0.14, r * 0.009, -0.45, 0, Math.PI * 2);
+  ctx.ellipse(x - bellyHalf * 0.2, ay - r * 0.01, bellyHalf * 0.1, r * 0.006, -0.45, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.restore();
