@@ -34,6 +34,7 @@ const ASSET_FILES = {
 };
 
 const IS_FILE_PREVIEW = window.location.protocol === 'file:';
+const ENABLE_TONGUE_DRAG = false;
 
 // ---------------------------------------------------------------------------
 // PartConfig - 第一阶段的舌头部位配置（对应需求文档 §6 / §11）
@@ -513,7 +514,7 @@ const state = {
     crown: false
   },
   unlockedDecors: {},
-  uiPartHint: 'tongue',
+  uiPartHint: 'mouth',
   uiSignature: '',
   sessionSignature: '',
 
@@ -542,19 +543,19 @@ const DECOR_OPTIONS = [
 ];
 
 const QUEST_DECK = [
-  { key: 'tongue3', part: 'tongue', label: '舌头三连弹', target: 3, minPull: 0.34, reward: 180 },
+  { key: 'mouth3', part: 'mouth', label: '嘴巴三连拽', target: 3, minPull: 0.18, reward: 190 },
   { key: 'cheek2', part: 'cheek', label: '脸颊左右拽', target: 2, minPull: 0.32, reward: 150 },
   { key: 'nose1', part: 'nose', label: '鼻尖拉到位', target: 1, minPull: 0.52, reward: 130 },
-  { key: 'mouth2', part: 'mouth', label: '嘴角变形秀', target: 2, minPull: 0.38, reward: 160 },
+  { key: 'mouthWide', part: 'mouth', label: '嘴巴变形秀', target: 2, minPull: 0.32, reward: 170 },
   { key: 'ear2', part: 'ear', label: '耳朵弹回来', target: 2, minPull: 0.36, reward: 145 },
   { key: 'hair1', part: 'hair', label: '头发飞起来', target: 1, minPull: 0.46, reward: 120 }
 ];
 
 const PART_SCORE_MULTIPLIER = {
-  tongue: 1.18,
+  tongue: 1,
   cheek: 1,
   nose: 0.95,
-  mouth: 1.06,
+  mouth: 1.18,
   ear: 0.98,
   hair: 0.96
 };
@@ -765,16 +766,17 @@ function recordRelease(partKey, power, x, y) {
 }
 
 function partKeyForUi(part) {
-  if (!part) return state.uiPartHint || 'tongue';
-  if (part.type === 'tongue') return 'tongue';
+  if (!part) return state.uiPartHint || 'mouth';
+  if (part.type === 'tongue') return ENABLE_TONGUE_DRAG ? 'tongue' : 'mouth';
   if (part.type === 'cheek') return 'cheek';
   if (part.type === 'facePart') {
     if (part.key === 'nose') return 'nose';
     if (part.key === 'hairTop') return 'hair';
     if (part.key === 'earLeft' || part.key === 'earRight') return 'ear';
+    if (isMouthPartKey(part.key)) return 'mouth';
     return 'mouth';
   }
-  return state.uiPartHint || 'tongue';
+  return state.uiPartHint || 'mouth';
 }
 
 function partLabelForUi(part) {
@@ -785,10 +787,10 @@ function partLabelForUi(part) {
 function partLabelFromTabKey(key) {
   if (key === 'cheek') return '脸颊';
   if (key === 'nose') return '鼻子';
-  if (key === 'mouth') return '嘴角';
+  if (key === 'mouth') return '嘴巴';
   if (key === 'ear') return '耳朵';
   if (key === 'hair') return '头发';
-  return '舌头';
+  return '嘴巴';
 }
 
 function moodForUi(pull) {
@@ -829,8 +831,8 @@ function updateInteractionHud() {
   const isHolding = Boolean(state.activePart) && state.pointer.active && holdingPhase;
   const displayPercent = isHolding ? pullPercent : Math.round(state.satisfaction);
 
-  let title = activeKey === 'tongue' ? '拽舌头' : `试试${label}`;
-  let detail = activeKey === 'tongue' ? '拉长，松手，回弹' : `${label}也会软软弹回`;
+  let title = activeKey === 'mouth' ? '拽嘴巴' : `试试${label}`;
+  let detail = activeKey === 'mouth' ? '点住嘴巴，往外拽，松手回弹' : `${label}也会软软弹回`;
   if (isHolding) {
     title = `正在拽${label}`;
     detail = pullPercent > 0
@@ -1183,6 +1185,10 @@ function facePartSpeechPrefix(key) {
   return 'mouth';
 }
 
+function isMouthPartKey(key) {
+  return key === 'mouthLeft' || key === 'mouthRight';
+}
+
 function tongueRewardPoint() {
   const anchor = currentRenderAnchor();
   return {
@@ -1411,12 +1417,6 @@ function updateHoverPart(point) {
     return;
   }
 
-  const tongueHit = hitTongue(point);
-  if (tongueHit.hit) {
-    state.hoverPart = { type: 'tongue', side: 0 };
-    return;
-  }
-
   const facePartHit = hitFacePart(point);
   if (facePartHit.hit) {
     state.hoverPart = { type: 'facePart', key: facePartHit.key };
@@ -1429,6 +1429,14 @@ function updateHoverPart(point) {
     return;
   }
 
+  if (ENABLE_TONGUE_DRAG) {
+    const tongueHit = hitTongue(point);
+    if (tongueHit.hit) {
+      state.hoverPart = { type: 'tongue', side: 0 };
+      return;
+    }
+  }
+
   state.hoverPart = null;
 }
 
@@ -1437,33 +1445,6 @@ function onPointerDown(event) {
   const point = pointerToCanvas(event);
   state.pointer = { x: point.x, y: point.y, active: true, kind: event.pointerType || 'mouse' };
   state.hoverPart = null;
-
-  const result = hitTongue(point);
-  if (result.hit) {
-    state.activePart = { type: 'tongue', side: 0 };
-
-    // 抓握偏移：如果点中舌身，把抓点稍微滑向舌尖 40%（§8）
-    if (result.snapToTip) {
-      state.dragOffset.x = 0;
-      state.dragOffset.y = 0;
-    } else {
-      const anchor = currentRenderAnchor();
-      const tipX = anchor.x + state.tip.x;
-      const tipY = anchor.y + state.tip.y;
-      const slideT = 0.4; // 从命中点向 tip 方向滑 40%
-      const grabX = lerp(point.x, tipX, slideT);
-      const grabY = lerp(point.y, tipY, slideT);
-      state.dragOffset.x = tipX - grabX;
-      state.dragOffset.y = tipY - grabY;
-    }
-
-    setPhase('Grabbed');
-    canvas.classList.add('dragging');
-    canvas.setPointerCapture(event.pointerId);
-    hideGestureHint();
-    updateDragTarget(point);
-    return;
-  }
 
   const facePartHit = hitFacePart(point);
   if (facePartHit.hit) {
@@ -1481,18 +1462,44 @@ function onPointerDown(event) {
   }
 
   const cheekHit = hitCheek(point);
-  if (!cheekHit.hit) return;
+  if (cheekHit.hit) {
+    const cheek = state.cheeks[cheekKey(cheekHit.side)];
+    const base = cheekBase(cheekHit.side);
+    state.activePart = { type: 'cheek', side: cheekHit.side };
+    state.cheekDragOffset.x = base.x + cheek.x - point.x;
+    state.cheekDragOffset.y = base.y + cheek.y - point.y;
+    setPhase('CheekGrabbed');
+    canvas.classList.add('dragging');
+    canvas.setPointerCapture(event.pointerId);
+    hideGestureHint();
+    updateCheekTarget(point);
+    return;
+  }
 
-  const cheek = state.cheeks[cheekKey(cheekHit.side)];
-  const base = cheekBase(cheekHit.side);
-  state.activePart = { type: 'cheek', side: cheekHit.side };
-  state.cheekDragOffset.x = base.x + cheek.x - point.x;
-  state.cheekDragOffset.y = base.y + cheek.y - point.y;
-  setPhase('CheekGrabbed');
+  if (!ENABLE_TONGUE_DRAG) return;
+
+  const result = hitTongue(point);
+  if (!result.hit) return;
+
+  state.activePart = { type: 'tongue', side: 0 };
+  if (result.snapToTip) {
+    state.dragOffset.x = 0;
+    state.dragOffset.y = 0;
+  } else {
+    const anchor = currentRenderAnchor();
+    const tipX = anchor.x + state.tip.x;
+    const tipY = anchor.y + state.tip.y;
+    const slideT = 0.4;
+    const grabX = lerp(point.x, tipX, slideT);
+    const grabY = lerp(point.y, tipY, slideT);
+    state.dragOffset.x = tipX - grabX;
+    state.dragOffset.y = tipY - grabY;
+  }
+  setPhase('Grabbed');
   canvas.classList.add('dragging');
   canvas.setPointerCapture(event.pointerId);
   hideGestureHint();
-  updateCheekTarget(point);
+  updateDragTarget(point);
 }
 
 function onPointerMove(event) {
@@ -2856,7 +2863,7 @@ function drawEyebrows(cx, cy, r) {
 
 function mouthMetrics(cx, cy, r) {
   const mouthY = cy + r * 0.335;
-  // 嘴角朝舌尖方向拉
+  // 嘴巴朝当前主拉扯方向变形。
   const vector = getExpressionVector();
   const dirLen = length(vector.x, vector.y) || 1;
   const pullX = (vector.x / dirLen) * vector.pull * config.mouthDeformAmount;
@@ -2877,9 +2884,23 @@ function mouthMetrics(cx, cy, r) {
     y: mouthY - open * 0.06 + right.y
   };
   const cornerPull = Math.max(left.pull, right.pull);
+  const mouthDragMode = cornerPull > 0.025 || isMouthPartKey(state.activePart?.key);
+  const mouthPullSide = right.pull >= left.pull ? 1 : -1;
   const cornerCenterX = (left.x + right.x) * 0.18;
   const cornerCenterY = (left.y + right.y) * 0.12;
-  return { mouthY, pullX, open, leftCorner, rightCorner, cornerPull, cornerCenterX, cornerCenterY, tongueMode };
+  return {
+    mouthY,
+    pullX,
+    open,
+    leftCorner,
+    rightCorner,
+    cornerPull,
+    cornerCenterX,
+    cornerCenterY,
+    tongueMode,
+    mouthDragMode,
+    mouthPullSide
+  };
 }
 
 function mouthOpeningGeometry(cx, r, metrics) {
@@ -2887,6 +2908,16 @@ function mouthOpeningGeometry(cx, r, metrics) {
   const pull = clamp(vector.pull, 0, 1);
   const t = easeOutQuad(pull);
   const tongueMode = Boolean(metrics.tongueMode);
+  const mouthDragMode = Boolean(metrics.mouthDragMode);
+  if (mouthDragMode) {
+    return {
+      x: cx + metrics.cornerCenterX * 0.62 + metrics.pullX * 0.08,
+      y: metrics.mouthY + metrics.cornerCenterY * 0.62,
+      w: r * lerp(0.18, 0.3, t),
+      h: r * lerp(0.018, 0.034, t) + getReleasePulse() * r * 0.004,
+      pull
+    };
+  }
   return {
     x: cx + metrics.pullX * 0.32 + metrics.cornerCenterX,
     y: metrics.mouthY + metrics.open * lerp(tongueMode ? -0.22 : -0.12, tongueMode ? -0.03 : 0.04, t) + metrics.cornerCenterY,
@@ -2918,6 +2949,141 @@ function drawMouthOpeningPath(x, y, w, h, pull = 0) {
     y - h * topLift
   );
   ctx.closePath();
+}
+
+function stretchedMouthFrame(metrics, r) {
+  const left = metrics.leftCorner;
+  const right = metrics.rightCorner;
+  const dx = right.x - left.x;
+  const dy = right.y - left.y;
+  const len = Math.max(1, length(dx, dy));
+  const nx = dx / len;
+  const ny = dy / len;
+  const px = -ny;
+  const py = nx;
+  const pull = clamp(metrics.cornerPull, 0, 1);
+  const side = metrics.mouthPullSide || 1;
+  const mid = {
+    x: (left.x + right.x) * 0.5 + side * r * 0.012 * pull,
+    y: (left.y + right.y) * 0.5 + r * (0.012 + pull * 0.012)
+  };
+  const thick = r * lerp(0.018, 0.036, easeOutQuad(pull));
+  const bow = r * lerp(0.012, 0.028, pull);
+  return { left, right, nx, ny, px, py, mid, thick, bow, pull, side, len };
+}
+
+function drawStretchedMouthSlot(frame) {
+  const { left, right, px, py, mid, thick, bow } = frame;
+  ctx.beginPath();
+  ctx.moveTo(left.x - px * thick * 0.42, left.y - py * thick * 0.42);
+  ctx.quadraticCurveTo(
+    mid.x - px * thick * 1.25,
+    mid.y - py * thick * 1.25 - bow,
+    right.x - px * thick * 0.42,
+    right.y - py * thick * 0.42
+  );
+  ctx.quadraticCurveTo(
+    mid.x + px * thick * 1.05,
+    mid.y + py * thick * 1.05 + bow * 0.72,
+    left.x + px * thick * 0.42,
+    left.y + py * thick * 0.42
+  );
+  ctx.closePath();
+}
+
+function drawMouthStretchCavity(metrics, r) {
+  const frame = stretchedMouthFrame(metrics, r);
+  const { left, right, mid, thick, pull, side } = frame;
+  const g = ctx.createLinearGradient(left.x, left.y, right.x, right.y);
+  g.addColorStop(0, 'rgba(83, 29, 50, 0.62)');
+  g.addColorStop(side > 0 ? 0.74 : 0.26, 'rgba(24, 8, 22, 0.88)');
+  g.addColorStop(1, 'rgba(117, 43, 62, 0.56)');
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(92, 34, 54, 0.045)';
+  ctx.beginPath();
+  ctx.ellipse(mid.x, mid.y + thick * 1.2, frame.len * 0.54, thick * (1.8 + pull), 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = g;
+  drawStretchedMouthSlot(frame);
+  ctx.fill();
+
+  const inner = ctx.createLinearGradient(mid.x, mid.y - thick * 2, mid.x, mid.y + thick * 2.2);
+  inner.addColorStop(0, 'rgba(255, 219, 205, 0.12)');
+  inner.addColorStop(0.5, 'rgba(31, 9, 25, 0.18)');
+  inner.addColorStop(1, 'rgba(18, 5, 16, 0.28)');
+  ctx.fillStyle = inner;
+  drawStretchedMouthSlot({ ...frame, thick: thick * 0.68, bow: frame.bow * 0.62 });
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawMouthStretchForeground(metrics, r) {
+  const frame = stretchedMouthFrame(metrics, r);
+  const { left, right, px, py, mid, thick, bow, pull, side } = frame;
+  const pulled = side > 0 ? right : left;
+  const anchored = side > 0 ? left : right;
+
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  const lip = ctx.createLinearGradient(left.x, left.y - thick, right.x, right.y + thick);
+  lip.addColorStop(0, 'rgba(85, 30, 49, 0.7)');
+  lip.addColorStop(0.5, 'rgba(55, 18, 39, 0.86)');
+  lip.addColorStop(1, 'rgba(113, 45, 62, 0.72)');
+  ctx.strokeStyle = lip;
+  ctx.lineWidth = Math.max(3.2, r * lerp(0.015, 0.022, pull));
+  ctx.beginPath();
+  ctx.moveTo(left.x - px * thick * 0.74, left.y - py * thick * 0.74);
+  ctx.quadraticCurveTo(
+    mid.x - px * thick * 1.45,
+    mid.y - py * thick * 1.45 - bow * 1.05,
+    right.x - px * thick * 0.74,
+    right.y - py * thick * 0.74
+  );
+  ctx.stroke();
+
+  ctx.strokeStyle = `rgba(255, 211, 186, ${0.34 + pull * 0.16})`;
+  ctx.lineWidth = Math.max(1.1, r * 0.0055);
+  ctx.beginPath();
+  ctx.moveTo(left.x - px * thick * 1.38, left.y - py * thick * 1.38 - r * 0.002);
+  ctx.quadraticCurveTo(
+    mid.x - px * thick * 1.78,
+    mid.y - py * thick * 1.78 - bow * 1.24,
+    right.x - px * thick * 1.38,
+    right.y - py * thick * 1.38 - r * 0.002
+  );
+  ctx.stroke();
+
+  ctx.strokeStyle = `rgba(141, 55, 70, ${0.42 + pull * 0.16})`;
+  ctx.lineWidth = Math.max(2.2, r * 0.012);
+  ctx.beginPath();
+  ctx.moveTo(left.x + px * thick * 0.9, left.y + py * thick * 0.9);
+  ctx.quadraticCurveTo(
+    mid.x + px * thick * 1.34,
+    mid.y + py * thick * 1.34 + bow * 0.7,
+    right.x + px * thick * 0.9,
+    right.y + py * thick * 0.9
+  );
+  ctx.stroke();
+
+  ctx.strokeStyle = `rgba(117, 52, 67, ${0.16 + pull * 0.2})`;
+  ctx.lineWidth = Math.max(1.1, r * 0.006);
+  ctx.beginPath();
+  ctx.moveTo(anchored.x - side * r * 0.02, anchored.y + r * 0.004);
+  ctx.quadraticCurveTo(mid.x - side * r * 0.055, mid.y + r * 0.02, mid.x - side * r * 0.09, mid.y + r * 0.03);
+  ctx.stroke();
+
+  ctx.strokeStyle = `rgba(255, 177, 153, ${0.16 + pull * 0.2})`;
+  ctx.lineWidth = Math.max(1, r * 0.0045);
+  ctx.beginPath();
+  ctx.moveTo(pulled.x - side * r * 0.035, pulled.y + r * 0.025);
+  ctx.quadraticCurveTo(pulled.x - side * r * 0.082, pulled.y + r * 0.044, pulled.x - side * r * 0.13, pulled.y + r * 0.034);
+  ctx.stroke();
+
+  ctx.restore();
 }
 
 const EXPORTED_MOUTH_ASSETS = {
@@ -2990,6 +3156,10 @@ function drawMouthCavity(cx, cy, r) {
   const metrics = mouthMetrics(cx, cy, r);
   const { x, y, w, h, pull } = mouthOpeningGeometry(cx, r, metrics);
   const tongueMode = Boolean(metrics.tongueMode);
+  if (metrics.mouthDragMode) {
+    drawMouthStretchCavity(metrics, r);
+    return;
+  }
   if (useExportedRestMouth(pull)) {
     drawExportedMouthBase(exportedMouthPose(cx, r, metrics));
     return;
@@ -3047,22 +3217,21 @@ function drawMouthCavity(cx, cy, r) {
 }
 
 function drawMouthForeground(cx, cy, r) {
-  const { mouthY, pullX, open, leftCorner, rightCorner, cornerPull, cornerCenterX, cornerCenterY, tongueMode } = mouthMetrics(cx, cy, r);
+  const metrics = mouthMetrics(cx, cy, r);
+  const { mouthY, pullX, open, cornerPull, cornerCenterX, cornerCenterY, tongueMode } = metrics;
   const mouthCornerActive = state.activePart?.key === 'mouthLeft'
     || state.activePart?.key === 'mouthRight'
     || cornerPull > 0.035;
 
-  if (state.activePart?.type === 'tongue') {
-    drawCleanMouthForeground(cx, mouthY, r, open, pullX, cornerCenterX, cornerCenterY, tongueMode);
+  if (metrics.mouthDragMode) {
+    drawMouthStretchForeground(metrics, r);
+    if (mouthCornerActive) drawMouthCornerHints(cx, cy, r);
     return;
   }
 
-  if (!mouthCornerActive) {
-    drawCleanMouthForeground(cx, mouthY, r, open, pullX, cornerCenterX, cornerCenterY, tongueMode);
-    return;
-  }
+  drawCleanMouthForeground(cx, mouthY, r, open, pullX, cornerCenterX, cornerCenterY, tongueMode);
+  if (!mouthCornerActive) return;
 
-  // 嘴角交互只保留局部提示，不再画整条嘴唇线，避免和舌头拉伸混在一起。
   ctx.save();
   drawMouthCornerHints(cx, cy, r);
   ctx.restore();
@@ -3265,6 +3434,7 @@ function drawInteractionAura(pose) {
 
 // 舌头阴影（在脸下面那层）
 function drawTongueShadow() {
+  if (!ENABLE_TONGUE_DRAG) return;
   const len = length(state.tip.x, state.tip.y);
   if (!shouldDrawFullTongue(len)) return;
   if (len < config.restLength * 0.32) return;
@@ -3273,6 +3443,7 @@ function drawTongueShadow() {
 
 // 舌头主体（在脸上面那层）
 function drawTongueOver() {
+  if (!ENABLE_TONGUE_DRAG) return;
   drawTongueShape({ shadow: false });
 }
 
@@ -4206,21 +4377,21 @@ function resetPose(options = {}) {
 }
 
 function handlePartTabClick(event) {
-  const key = event.currentTarget.dataset.partTab || 'tongue';
+  const key = event.currentTarget.dataset.partTab || 'mouth';
   state.uiPartHint = key;
   updatePartTabs(key);
   const label = partLabelFromTabKey(key);
   const copy = key === 'cheek'
     ? '点脸颊两侧，往外拉会有果冻脸反馈'
     : key === 'mouth'
-      ? '点嘴角往外扯，表情会跟着变形'
+      ? '点住嘴巴往外拽，嘴唇和表情会一起变形'
       : key === 'ear'
         ? '点耳朵边缘往外拽，松手会弹回来'
         : key === 'hair'
           ? '点头发往上提，会有软软的拉伸'
           : key === 'nose'
             ? '点小鼻子往外拉，别太用力'
-            : '点嘴里的小舌头往外拽，这是主爽感';
+            : '点住嘴巴往外拽，这是主爽感';
   if (interactionTitleEl) interactionTitleEl.textContent = `试试拽${label}`;
   if (interactionDetailEl) interactionDetailEl.textContent = copy;
   showSpeech(copy);
