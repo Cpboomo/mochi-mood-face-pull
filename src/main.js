@@ -485,6 +485,7 @@ const state = {
 
   // 回弹冲击
   releasePunch: { age: 999, power: 0 },
+  mouthRubberEcho: { x: 0, y: 0, pull: 0, age: 999, life: 0.52 },
 
   // 轻量成长与装扮
   screen: 'menu',
@@ -1099,10 +1100,10 @@ function facePartMeta(key) {
   if (key === 'mouthCenter') {
     return {
       kind: 'mouth',
-      grabRadius: config.mouthCornerGrabRadius * 1.55,
-      softMax: config.mouthCornerSoftMaxLength * 1.08,
-      hardMax: config.mouthCornerHardMaxLength * 1.12,
-      pullWeight: 1.08
+      grabRadius: config.mouthCornerGrabRadius * 1.72,
+      softMax: config.mouthCornerSoftMaxLength * 1.28,
+      hardMax: config.mouthCornerHardMaxLength * 1.46,
+      pullWeight: 1.16
     };
   }
   return {
@@ -1322,6 +1323,12 @@ function setPhase(next) {
     pulseHaptics('release', power);
     state.releasePunch.age = 0;
     state.releasePunch.power = clamp(power * 0.72, 0.14, 0.86);
+    if (state.activePart?.key === 'mouthCenter' && part) {
+      state.mouthRubberEcho.x = part.x;
+      state.mouthRubberEcho.y = part.y;
+      state.mouthRubberEcho.pull = power;
+      state.mouthRubberEcho.age = 0;
+    }
     spawnFacePartReleaseBurst();
     const point = facePartRewardPoint();
     addSatisfaction(3 + power * 8, point.x, point.y, '整活');
@@ -1694,12 +1701,12 @@ function updateFacePartTarget(point) {
   let finalLen;
   if (rawLen <= meta.softMax) {
     const t = clamp(rawLen / meta.softMax, 0, 1);
-    const resistance = active.key === 'nose' ? 0.18 : 0.22;
+    const resistance = active.key === 'nose' ? 0.18 : active.key === 'mouthCenter' ? 0.04 : 0.22;
     finalLen = rawLen - rawLen * resistance * easeOutQuad(t);
   } else {
     const extra = rawLen - meta.softMax;
     const range = Math.max(20, meta.hardMax - meta.softMax);
-    const baseResistance = active.key === 'nose' ? 0.82 : 0.78;
+    const baseResistance = active.key === 'nose' ? 0.82 : active.key === 'mouthCenter' ? 0.96 : 0.78;
     finalLen = Math.min(
       meta.hardMax,
       meta.softMax * baseResistance + easeOutSine(clamp(extra / (range * 1.35), 0, 1)) * range
@@ -1728,6 +1735,9 @@ function update(dt) {
   // 上限保护
   dt = Math.min(dt, 1 / 30);
   state.releasePunch.age += dt;
+  if (state.mouthRubberEcho.age < state.mouthRubberEcho.life) {
+    state.mouthRubberEcho.age += dt;
+  }
   if (state.combo.timer > 0) {
     state.combo.timer = Math.max(0, state.combo.timer - dt);
   } else if (state.combo.count !== 0) {
@@ -2982,9 +2992,9 @@ function drawMouthOpeningPath(x, y, w, h, pull = 0) {
 
 function mouthCenterRubberFrame(metrics, r) {
   const root = metrics.centerRoot;
-  const tip = metrics.centerTip;
-  let dx = tip.x - root.x;
-  let dy = tip.y - root.y;
+  const rawTip = metrics.centerTip;
+  let dx = rawTip.x - root.x;
+  let dy = rawTip.y - root.y;
   let len = length(dx, dy);
   if (len < 1) {
     dx = 1;
@@ -2995,9 +3005,13 @@ function mouthCenterRubberFrame(metrics, r) {
   const dirY = dy / len;
   const px = -dirY;
   const py = dirX;
-  const pull = clamp(metrics.centerPull, 0, 1.18);
-  const squash = easeOutQuad(clamp(pull * 1.12, 0, 1));
-  const visibleLen = Math.max(len, r * 0.035);
+  const pull = clamp(metrics.centerPull, 0, 1.28);
+  const squash = easeOutQuad(clamp(pull * 1.18, 0, 1));
+  const visibleLen = Math.max(len * lerp(1.16, 1.42, squash), r * lerp(0.12, 0.22, squash));
+  const tip = {
+    x: root.x + dirX * visibleLen,
+    y: root.y + dirY * visibleLen
+  };
   return {
     root,
     tip,
@@ -3008,10 +3022,28 @@ function mouthCenterRubberFrame(metrics, r) {
     len: visibleLen,
     pull,
     squash,
-    rootHalf: r * lerp(0.18, 0.118, squash),
-    rootThick: r * lerp(0.024, 0.01, squash),
-    tipHalf: r * lerp(0.07, 0.043, squash),
-    tipNose: r * lerp(0.018, 0.036, squash)
+    rootHalf: r * lerp(0.23, 0.16, squash),
+    rootThick: r * lerp(0.03, 0.014, squash),
+    tipHalf: r * lerp(0.105, 0.066, squash),
+    tipNose: r * lerp(0.03, 0.052, squash)
+  };
+}
+
+function mouthRubberEchoMetrics(metrics) {
+  const echo = state.mouthRubberEcho;
+  if (!echo || echo.age >= echo.life) return null;
+  const t = clamp(echo.age / Math.max(0.001, echo.life), 0, 1);
+  const fade = 1 - t;
+  if (echo.pull * fade < 0.035) return null;
+  const shrink = 0.52 + fade * 0.48;
+  return {
+    ...metrics,
+    mouthCenterMode: true,
+    centerPull: echo.pull * fade,
+    centerTip: {
+      x: metrics.centerRoot.x + echo.x * shrink,
+      y: metrics.centerRoot.y + echo.y * shrink
+    }
   };
 }
 
@@ -3068,7 +3100,7 @@ function drawMouthCenterRubberPath(frame, scale = 1) {
 
 function drawMouthCenterRubberCavity(metrics, r) {
   const frame = mouthCenterRubberFrame(metrics, r);
-  const { root, tip, pull, squash, rootHalf, rootThick, len } = frame;
+  const { root, tip, pull, squash, rootHalf, rootThick, len, dirX, dirY } = frame;
 
   ctx.save();
   ctx.fillStyle = `rgba(88, 31, 53, ${0.06 + pull * 0.05})`;
@@ -3077,25 +3109,40 @@ function drawMouthCenterRubberCavity(metrics, r) {
   ctx.fill();
 
   const g = ctx.createLinearGradient(root.x, root.y, tip.x, tip.y);
-  g.addColorStop(0, 'rgba(98, 37, 57, 0.88)');
-  g.addColorStop(0.38, 'rgba(42, 13, 34, 0.92)');
-  g.addColorStop(1, 'rgba(127, 49, 68, 0.82)');
+  g.addColorStop(0, 'rgba(119, 39, 58, 0.96)');
+  g.addColorStop(0.42, 'rgba(214, 92, 105, 0.95)');
+  g.addColorStop(1, 'rgba(151, 52, 76, 0.97)');
   ctx.fillStyle = g;
-  drawMouthCenterRubberPath(frame, 1);
+  drawMouthCenterRubberPath(frame, 1.08);
   ctx.fill();
 
   const inner = ctx.createLinearGradient(root.x, root.y - rootThick, tip.x, tip.y + rootThick);
-  inner.addColorStop(0, 'rgba(255, 220, 204, 0.1)');
-  inner.addColorStop(0.55, 'rgba(23, 7, 20, 0.18)');
-  inner.addColorStop(1, 'rgba(12, 4, 14, 0.34)');
+  inner.addColorStop(0, 'rgba(255, 226, 208, 0.22)');
+  inner.addColorStop(0.55, 'rgba(79, 22, 42, 0.16)');
+  inner.addColorStop(1, 'rgba(31, 8, 24, 0.3)');
   ctx.fillStyle = inner;
-  drawMouthCenterRubberPath(frame, 0.68);
+  drawMouthCenterRubberPath(frame, 0.78);
   ctx.fill();
 
   ctx.fillStyle = `rgba(37, 12, 28, ${0.42 + squash * 0.22})`;
   ctx.beginPath();
   ctx.ellipse(root.x, root.y + rootThick * 0.25, rootHalf * 0.9, rootThick * 1.15, 0, 0, Math.PI * 2);
   ctx.fill();
+
+  ctx.strokeStyle = `rgba(19, 6, 17, ${0.58 + squash * 0.24})`;
+  ctx.lineWidth = Math.max(3, r * lerp(0.012, 0.018, squash));
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(root.x - dirX * r * 0.008, root.y + rootThick * 0.08);
+  ctx.bezierCurveTo(
+    root.x + dirX * len * 0.18,
+    root.y + dirY * len * 0.18 + rootThick * 0.16,
+    tip.x - dirX * len * 0.24,
+    tip.y - dirY * len * 0.24,
+    tip.x - dirX * r * 0.018,
+    tip.y - dirY * r * 0.018
+  );
+  ctx.stroke();
   ctx.restore();
 }
 
@@ -3111,12 +3158,37 @@ function drawMouthCenterRubberForeground(metrics, r) {
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
+  const body = ctx.createLinearGradient(root.x, root.y - rootThick, tip.x, tip.y + rootThick);
+  body.addColorStop(0, `rgba(145, 45, 66, ${0.42 + squash * 0.16})`);
+  body.addColorStop(0.48, `rgba(236, 103, 115, ${0.34 + squash * 0.18})`);
+  body.addColorStop(1, `rgba(181, 65, 90, ${0.46 + squash * 0.16})`);
+  ctx.fillStyle = body;
+  drawMouthCenterRubberPath(frame, 1.18);
+  ctx.fill();
+
+  const shadow = ctx.createLinearGradient(root.x, root.y, tip.x, tip.y);
+  shadow.addColorStop(0, `rgba(82, 30, 50, ${0.12 + squash * 0.08})`);
+  shadow.addColorStop(1, `rgba(82, 30, 50, ${0.02 + squash * 0.04})`);
+  ctx.strokeStyle = shadow;
+  ctx.lineWidth = Math.max(8, r * (0.038 + squash * 0.018));
+  ctx.beginPath();
+  ctx.moveTo(root.x - dirX * r * 0.01, root.y + r * 0.012);
+  ctx.bezierCurveTo(
+    root.x + dirX * frame.len * 0.24,
+    root.y + dirY * frame.len * 0.24 + r * 0.018,
+    tip.x - dirX * frame.len * 0.32,
+    tip.y - dirY * frame.len * 0.32 + r * 0.018,
+    tip.x - dirX * r * 0.02,
+    tip.y - dirY * r * 0.02 + r * 0.012
+  );
+  ctx.stroke();
+
   const lip = ctx.createLinearGradient(root.x, root.y - r * 0.03, tip.x, tip.y + r * 0.03);
-  lip.addColorStop(0, 'rgba(94, 32, 51, 0.84)');
-  lip.addColorStop(0.42, 'rgba(56, 18, 39, 0.95)');
-  lip.addColorStop(1, 'rgba(134, 56, 73, 0.86)');
+  lip.addColorStop(0, 'rgba(126, 45, 62, 0.92)');
+  lip.addColorStop(0.42, 'rgba(70, 22, 43, 0.98)');
+  lip.addColorStop(1, 'rgba(166, 67, 82, 0.94)');
   ctx.strokeStyle = lip;
-  ctx.lineWidth = Math.max(3, r * lerp(0.018, 0.026, squash));
+  ctx.lineWidth = Math.max(4, r * lerp(0.025, 0.036, squash));
   ctx.beginPath();
   ctx.moveTo(rootLeft.x, rootLeft.y - rootThick * 0.55);
   ctx.bezierCurveTo(
@@ -3129,8 +3201,8 @@ function drawMouthCenterRubberForeground(metrics, r) {
   );
   ctx.stroke();
 
-  ctx.strokeStyle = `rgba(151, 58, 72, ${0.48 + pull * 0.14})`;
-  ctx.lineWidth = Math.max(2.2, r * 0.014);
+  ctx.strokeStyle = `rgba(180, 66, 78, ${0.62 + pull * 0.16})`;
+  ctx.lineWidth = Math.max(3.2, r * 0.024);
   ctx.beginPath();
   ctx.moveTo(rootRight.x, rootRight.y + rootThick * 0.72);
   ctx.bezierCurveTo(
@@ -3140,6 +3212,20 @@ function drawMouthCenterRubberForeground(metrics, r) {
     tip.y - dirY * frame.len * 0.24 + py * tipHalf * 1.1,
     tipB.x,
     tipB.y
+  );
+  ctx.stroke();
+
+  ctx.strokeStyle = `rgba(31, 8, 24, ${0.5 + squash * 0.18})`;
+  ctx.lineWidth = Math.max(2.2, r * 0.011);
+  ctx.beginPath();
+  ctx.moveTo(root.x - dirX * r * 0.006, root.y + rootThick * 0.18);
+  ctx.bezierCurveTo(
+    root.x + dirX * frame.len * 0.2,
+    root.y + dirY * frame.len * 0.2 + rootThick * 0.32,
+    tip.x - dirX * frame.len * 0.28,
+    tip.y - dirY * frame.len * 0.28,
+    tip.x - dirX * r * 0.018,
+    tip.y - dirY * r * 0.018
   );
   ctx.stroke();
 
@@ -3158,13 +3244,26 @@ function drawMouthCenterRubberForeground(metrics, r) {
   ctx.stroke();
 
   ctx.strokeStyle = `rgba(65, 22, 40, ${0.58 + squash * 0.18})`;
-  ctx.lineWidth = Math.max(2.4, r * 0.014);
+  ctx.lineWidth = Math.max(3.2, r * 0.018);
   ctx.beginPath();
-  ctx.moveTo(root.x - rootHalf * 0.86, root.y);
-  ctx.quadraticCurveTo(root.x, root.y - rootThick * (0.35 + squash * 0.25), root.x + rootHalf * 0.86, root.y);
+  ctx.moveTo(root.x - rootHalf * 0.96, root.y);
+  ctx.quadraticCurveTo(root.x, root.y - rootThick * (0.42 + squash * 0.35), root.x + rootHalf * 0.96, root.y);
   ctx.stroke();
 
-  ctx.fillStyle = `rgba(255, 239, 220, ${0.14 + pull * 0.1})`;
+  for (let i = 1; i <= 3; i += 1) {
+    const t = i / 4;
+    const cx = root.x + (tip.x - root.x) * t;
+    const cy = root.y + (tip.y - root.y) * t;
+    const half = lerp(rootHalf * 0.55, tipHalf * 0.75, t) * (1 - squash * 0.22);
+    ctx.strokeStyle = `rgba(255, 207, 184, ${0.2 + squash * 0.12})`;
+    ctx.lineWidth = Math.max(0.8, r * 0.0038);
+    ctx.beginPath();
+    ctx.moveTo(cx - px * half, cy - py * half);
+    ctx.quadraticCurveTo(cx - dirX * r * 0.01, cy - dirY * r * 0.01, cx + px * half, cy + py * half);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = `rgba(255, 239, 220, ${0.18 + pull * 0.14})`;
   [-1, 1].forEach((side) => {
     ctx.beginPath();
     ctx.ellipse(
@@ -3173,6 +3272,21 @@ function drawMouthCenterRubberForeground(metrics, r) {
       r * 0.028,
       r * 0.018,
       Math.atan2(dirY, dirX),
+      0,
+      Math.PI * 2
+    );
+    ctx.fill();
+  });
+
+  ctx.fillStyle = `rgba(255, 195, 158, ${0.26 + squash * 0.18})`;
+  [-1, 1].forEach((side) => {
+    ctx.beginPath();
+    ctx.ellipse(
+      tip.x + px * tipHalf * 2.04 * side + dirX * r * 0.004,
+      tip.y + py * tipHalf * 2.04 * side + dirY * r * 0.004,
+      r * lerp(0.026, 0.036, squash),
+      r * lerp(0.018, 0.024, squash),
+      Math.atan2(dirY, dirX) + side * 0.18,
       0,
       Math.PI * 2
     );
@@ -3391,6 +3505,14 @@ function drawMouthCavity(cx, cy, r) {
     drawMouthCenterRubberCavity(metrics, r);
     return;
   }
+  const echoMetrics = mouthRubberEchoMetrics(metrics);
+  if (echoMetrics) {
+    const echoAlpha = 1 - clamp(state.mouthRubberEcho.age / state.mouthRubberEcho.life, 0, 1);
+    ctx.save();
+    ctx.globalAlpha *= 0.76 * echoAlpha;
+    drawMouthCenterRubberCavity(echoMetrics, r);
+    ctx.restore();
+  }
   if (metrics.mouthDragMode) {
     drawMouthStretchCavity(metrics, r);
     return;
@@ -3461,6 +3583,14 @@ function drawMouthForeground(cx, cy, r) {
   if (metrics.mouthCenterMode) {
     drawMouthCenterRubberForeground(metrics, r);
     return;
+  }
+  const echoMetrics = mouthRubberEchoMetrics(metrics);
+  if (echoMetrics) {
+    const echoAlpha = 1 - clamp(state.mouthRubberEcho.age / state.mouthRubberEcho.life, 0, 1);
+    ctx.save();
+    ctx.globalAlpha *= 0.82 * echoAlpha;
+    drawMouthCenterRubberForeground(echoMetrics, r);
+    ctx.restore();
   }
 
   if (metrics.mouthDragMode) {
@@ -4612,6 +4742,10 @@ function resetPose(options = {}) {
   state.floatingTexts = [];
   state.releasePunch.age = 999;
   state.releasePunch.power = 0;
+  state.mouthRubberEcho.age = 999;
+  state.mouthRubberEcho.x = 0;
+  state.mouthRubberEcho.y = 0;
+  state.mouthRubberEcho.pull = 0;
   setPhase('Idle');
   if (!silent) showSpeech('好了好了。');
 }
