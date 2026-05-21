@@ -457,6 +457,7 @@ const state = {
   cheekReleaseDir: { x: 1, y: 0 },
   faceParts: {
     nose: { x: 0, y: 0, vx: 0, vy: 0, targetX: 0, targetY: 0, pull: 0, maxPull: 0 },
+    mouthCenter: { x: 0, y: 0, vx: 0, vy: 0, targetX: 0, targetY: 0, pull: 0, maxPull: 0 },
     mouthLeft: { x: 0, y: 0, vx: 0, vy: 0, targetX: 0, targetY: 0, pull: 0, maxPull: 0 },
     mouthRight: { x: 0, y: 0, vx: 0, vy: 0, targetX: 0, targetY: 0, pull: 0, maxPull: 0 },
     earLeft: { x: 0, y: 0, vx: 0, vy: 0, targetX: 0, targetY: 0, pull: 0, maxPull: 0 },
@@ -831,8 +832,8 @@ function updateInteractionHud() {
   const isHolding = Boolean(state.activePart) && state.pointer.active && holdingPhase;
   const displayPercent = isHolding ? pullPercent : Math.round(state.satisfaction);
 
-  let title = activeKey === 'mouth' ? '拽嘴巴' : `试试${label}`;
-  let detail = activeKey === 'mouth' ? '点住嘴巴，往外拽，松手回弹' : `${label}也会软软弹回`;
+  let title = activeKey === 'mouth' ? '捏拽嘴巴' : `试试${label}`;
+  let detail = activeKey === 'mouth' ? '捏住嘴巴中间，像橡胶一样拉长' : `${label}也会软软弹回`;
   if (isHolding) {
     title = `正在拽${label}`;
     detail = pullPercent > 0
@@ -1095,6 +1096,15 @@ function facePartMeta(key) {
       pullWeight: 0.76
     };
   }
+  if (key === 'mouthCenter') {
+    return {
+      kind: 'mouth',
+      grabRadius: config.mouthCornerGrabRadius * 1.55,
+      softMax: config.mouthCornerSoftMaxLength * 1.08,
+      hardMax: config.mouthCornerHardMaxLength * 1.12,
+      pullWeight: 1.08
+    };
+  }
   return {
     kind: 'mouth',
     grabRadius: config.mouthCornerGrabRadius,
@@ -1119,6 +1129,9 @@ function facePartBase(key, pose = computeFacePose()) {
   }
   if (key === 'hairTop') {
     return { x: pose.cx - pose.r * 0.04, y: pose.cy - pose.r * 0.78, r: pose.r, side: 0 };
+  }
+  if (key === 'mouthCenter') {
+    return { x: pose.cx, y: pose.cy + pose.r * 0.335, r: pose.r, side: 0 };
   }
   const side = key === 'mouthLeft' ? -1 : 1;
   return {
@@ -1186,7 +1199,7 @@ function facePartSpeechPrefix(key) {
 }
 
 function isMouthPartKey(key) {
-  return key === 'mouthLeft' || key === 'mouthRight';
+  return key === 'mouthCenter' || key === 'mouthLeft' || key === 'mouthRight';
 }
 
 function tongueRewardPoint() {
@@ -1396,6 +1409,7 @@ function hitFacePart(point) {
   const pose = computeFacePose();
   let best = { hit: false, dist: Infinity, key: null };
   Object.keys(state.faceParts).forEach((key) => {
+    if (key === 'mouthLeft' || key === 'mouthRight') return;
     const base = facePartBase(key, pose);
     const part = state.faceParts[key];
     const cx = base.x + part.x;
@@ -2875,6 +2889,7 @@ function mouthMetrics(cx, cy, r) {
   const open = lerp(r * (0.06 + tongueLift), openMax, clamp(vector.pull, 0, 1)) + getReleasePulse() * r * 0.026;
   const left = state.faceParts.mouthLeft;
   const right = state.faceParts.mouthRight;
+  const center = state.faceParts.mouthCenter;
   const leftCorner = {
     x: cx - r * 0.24 + pullX * 0.12 + left.x,
     y: mouthY - open * 0.06 + left.y
@@ -2883,8 +2898,18 @@ function mouthMetrics(cx, cy, r) {
     x: cx + r * 0.24 + pullX * 0.12 + right.x,
     y: mouthY - open * 0.06 + right.y
   };
+  const centerRoot = {
+    x: cx + pullX * 0.06,
+    y: mouthY - open * 0.035
+  };
+  const centerTip = {
+    x: centerRoot.x + center.x,
+    y: centerRoot.y + center.y
+  };
+  const centerPull = center.pull;
+  const mouthCenterMode = centerPull > 0.025 || state.activePart?.key === 'mouthCenter';
   const cornerPull = Math.max(left.pull, right.pull);
-  const mouthDragMode = cornerPull > 0.025 || isMouthPartKey(state.activePart?.key);
+  const mouthDragMode = mouthCenterMode || cornerPull > 0.025 || isMouthPartKey(state.activePart?.key);
   const mouthPullSide = right.pull >= left.pull ? 1 : -1;
   const cornerCenterX = (left.x + right.x) * 0.18;
   const cornerCenterY = (left.y + right.y) * 0.12;
@@ -2899,7 +2924,11 @@ function mouthMetrics(cx, cy, r) {
     cornerCenterY,
     tongueMode,
     mouthDragMode,
-    mouthPullSide
+    mouthPullSide,
+    mouthCenterMode,
+    centerRoot,
+    centerTip,
+    centerPull
   };
 }
 
@@ -2949,6 +2978,208 @@ function drawMouthOpeningPath(x, y, w, h, pull = 0) {
     y - h * topLift
   );
   ctx.closePath();
+}
+
+function mouthCenterRubberFrame(metrics, r) {
+  const root = metrics.centerRoot;
+  const tip = metrics.centerTip;
+  let dx = tip.x - root.x;
+  let dy = tip.y - root.y;
+  let len = length(dx, dy);
+  if (len < 1) {
+    dx = 1;
+    dy = 0;
+    len = 1;
+  }
+  const dirX = dx / len;
+  const dirY = dy / len;
+  const px = -dirY;
+  const py = dirX;
+  const pull = clamp(metrics.centerPull, 0, 1.18);
+  const squash = easeOutQuad(clamp(pull * 1.12, 0, 1));
+  const visibleLen = Math.max(len, r * 0.035);
+  return {
+    root,
+    tip,
+    dirX,
+    dirY,
+    px,
+    py,
+    len: visibleLen,
+    pull,
+    squash,
+    rootHalf: r * lerp(0.18, 0.118, squash),
+    rootThick: r * lerp(0.024, 0.01, squash),
+    tipHalf: r * lerp(0.07, 0.043, squash),
+    tipNose: r * lerp(0.018, 0.036, squash)
+  };
+}
+
+function drawMouthCenterRubberPath(frame, scale = 1) {
+  const {
+    root,
+    tip,
+    dirX,
+    dirY,
+    px,
+    py,
+    len,
+    rootHalf,
+    rootThick,
+    tipHalf,
+    tipNose
+  } = frame;
+  const rw = rootHalf * scale;
+  const rt = rootThick * scale;
+  const tw = tipHalf * scale;
+  const nose = tipNose * scale;
+  const left = { x: root.x - rw, y: root.y - rt * 0.25 };
+  const right = { x: root.x + rw, y: root.y - rt * 0.25 };
+  const tipA = { x: tip.x - px * tw, y: tip.y - py * tw };
+  const tipB = { x: tip.x + px * tw, y: tip.y + py * tw };
+
+  ctx.beginPath();
+  ctx.moveTo(left.x, left.y);
+  ctx.bezierCurveTo(
+    root.x + dirX * len * 0.16 - px * rw * 0.28,
+    root.y + dirY * len * 0.16 - py * rw * 0.28 - rt,
+    tip.x - dirX * len * 0.28 - px * tw * 1.08,
+    tip.y - dirY * len * 0.28 - py * tw * 1.08,
+    tipA.x,
+    tipA.y
+  );
+  ctx.quadraticCurveTo(
+    tip.x + dirX * nose,
+    tip.y + dirY * nose,
+    tipB.x,
+    tipB.y
+  );
+  ctx.bezierCurveTo(
+    tip.x - dirX * len * 0.28 + px * tw * 1.08,
+    tip.y - dirY * len * 0.28 + py * tw * 1.08,
+    root.x + dirX * len * 0.16 + px * rw * 0.28,
+    root.y + dirY * len * 0.16 + py * rw * 0.28 + rt,
+    right.x,
+    right.y
+  );
+  ctx.quadraticCurveTo(root.x, root.y + rt * 1.45, left.x, left.y);
+  ctx.closePath();
+}
+
+function drawMouthCenterRubberCavity(metrics, r) {
+  const frame = mouthCenterRubberFrame(metrics, r);
+  const { root, tip, pull, squash, rootHalf, rootThick, len } = frame;
+
+  ctx.save();
+  ctx.fillStyle = `rgba(88, 31, 53, ${0.06 + pull * 0.05})`;
+  ctx.beginPath();
+  ctx.ellipse(root.x + (tip.x - root.x) * 0.34, root.y + (tip.y - root.y) * 0.34 + r * 0.012, len * 0.42, r * (0.018 + pull * 0.015), Math.atan2(tip.y - root.y, tip.x - root.x), 0, Math.PI * 2);
+  ctx.fill();
+
+  const g = ctx.createLinearGradient(root.x, root.y, tip.x, tip.y);
+  g.addColorStop(0, 'rgba(98, 37, 57, 0.88)');
+  g.addColorStop(0.38, 'rgba(42, 13, 34, 0.92)');
+  g.addColorStop(1, 'rgba(127, 49, 68, 0.82)');
+  ctx.fillStyle = g;
+  drawMouthCenterRubberPath(frame, 1);
+  ctx.fill();
+
+  const inner = ctx.createLinearGradient(root.x, root.y - rootThick, tip.x, tip.y + rootThick);
+  inner.addColorStop(0, 'rgba(255, 220, 204, 0.1)');
+  inner.addColorStop(0.55, 'rgba(23, 7, 20, 0.18)');
+  inner.addColorStop(1, 'rgba(12, 4, 14, 0.34)');
+  ctx.fillStyle = inner;
+  drawMouthCenterRubberPath(frame, 0.68);
+  ctx.fill();
+
+  ctx.fillStyle = `rgba(37, 12, 28, ${0.42 + squash * 0.22})`;
+  ctx.beginPath();
+  ctx.ellipse(root.x, root.y + rootThick * 0.25, rootHalf * 0.9, rootThick * 1.15, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawMouthCenterRubberForeground(metrics, r) {
+  const frame = mouthCenterRubberFrame(metrics, r);
+  const { root, tip, dirX, dirY, px, py, pull, squash, rootHalf, rootThick, tipHalf } = frame;
+  const rootLeft = { x: root.x - rootHalf, y: root.y - rootThick * 0.25 };
+  const rootRight = { x: root.x + rootHalf, y: root.y - rootThick * 0.25 };
+  const tipA = { x: tip.x - px * tipHalf, y: tip.y - py * tipHalf };
+  const tipB = { x: tip.x + px * tipHalf, y: tip.y + py * tipHalf };
+
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  const lip = ctx.createLinearGradient(root.x, root.y - r * 0.03, tip.x, tip.y + r * 0.03);
+  lip.addColorStop(0, 'rgba(94, 32, 51, 0.84)');
+  lip.addColorStop(0.42, 'rgba(56, 18, 39, 0.95)');
+  lip.addColorStop(1, 'rgba(134, 56, 73, 0.86)');
+  ctx.strokeStyle = lip;
+  ctx.lineWidth = Math.max(3, r * lerp(0.018, 0.026, squash));
+  ctx.beginPath();
+  ctx.moveTo(rootLeft.x, rootLeft.y - rootThick * 0.55);
+  ctx.bezierCurveTo(
+    root.x + dirX * frame.len * 0.2 - px * rootHalf * 0.25,
+    root.y + dirY * frame.len * 0.2 - py * rootHalf * 0.25 - rootThick,
+    tip.x - dirX * frame.len * 0.24 - px * tipHalf * 1.15,
+    tip.y - dirY * frame.len * 0.24 - py * tipHalf * 1.15,
+    tipA.x,
+    tipA.y
+  );
+  ctx.stroke();
+
+  ctx.strokeStyle = `rgba(151, 58, 72, ${0.48 + pull * 0.14})`;
+  ctx.lineWidth = Math.max(2.2, r * 0.014);
+  ctx.beginPath();
+  ctx.moveTo(rootRight.x, rootRight.y + rootThick * 0.72);
+  ctx.bezierCurveTo(
+    root.x + dirX * frame.len * 0.18 + px * rootHalf * 0.2,
+    root.y + dirY * frame.len * 0.18 + py * rootHalf * 0.2 + rootThick,
+    tip.x - dirX * frame.len * 0.24 + px * tipHalf * 1.1,
+    tip.y - dirY * frame.len * 0.24 + py * tipHalf * 1.1,
+    tipB.x,
+    tipB.y
+  );
+  ctx.stroke();
+
+  ctx.strokeStyle = `rgba(255, 220, 191, ${0.38 + pull * 0.15})`;
+  ctx.lineWidth = Math.max(1.1, r * 0.006);
+  ctx.beginPath();
+  ctx.moveTo(rootLeft.x + rootHalf * 0.28, rootLeft.y - rootThick * 1.3);
+  ctx.bezierCurveTo(
+    root.x + dirX * frame.len * 0.24,
+    root.y + dirY * frame.len * 0.24 - rootThick * 1.55,
+    tip.x - dirX * frame.len * 0.28 - px * tipHalf * 0.55,
+    tip.y - dirY * frame.len * 0.28 - py * tipHalf * 0.55,
+    tip.x - px * tipHalf * 0.36,
+    tip.y - py * tipHalf * 0.36
+  );
+  ctx.stroke();
+
+  ctx.strokeStyle = `rgba(65, 22, 40, ${0.58 + squash * 0.18})`;
+  ctx.lineWidth = Math.max(2.4, r * 0.014);
+  ctx.beginPath();
+  ctx.moveTo(root.x - rootHalf * 0.86, root.y);
+  ctx.quadraticCurveTo(root.x, root.y - rootThick * (0.35 + squash * 0.25), root.x + rootHalf * 0.86, root.y);
+  ctx.stroke();
+
+  ctx.fillStyle = `rgba(255, 239, 220, ${0.14 + pull * 0.1})`;
+  [-1, 1].forEach((side) => {
+    ctx.beginPath();
+    ctx.ellipse(
+      tip.x + px * tipHalf * 1.55 * side - dirX * r * 0.006,
+      tip.y + py * tipHalf * 1.55 * side - dirY * r * 0.006,
+      r * 0.028,
+      r * 0.018,
+      Math.atan2(dirY, dirX),
+      0,
+      Math.PI * 2
+    );
+    ctx.fill();
+  });
+
+  ctx.restore();
 }
 
 function stretchedMouthFrame(metrics, r) {
@@ -3156,6 +3387,10 @@ function drawMouthCavity(cx, cy, r) {
   const metrics = mouthMetrics(cx, cy, r);
   const { x, y, w, h, pull } = mouthOpeningGeometry(cx, r, metrics);
   const tongueMode = Boolean(metrics.tongueMode);
+  if (metrics.mouthCenterMode) {
+    drawMouthCenterRubberCavity(metrics, r);
+    return;
+  }
   if (metrics.mouthDragMode) {
     drawMouthStretchCavity(metrics, r);
     return;
@@ -3222,6 +3457,11 @@ function drawMouthForeground(cx, cy, r) {
   const mouthCornerActive = state.activePart?.key === 'mouthLeft'
     || state.activePart?.key === 'mouthRight'
     || cornerPull > 0.035;
+
+  if (metrics.mouthCenterMode) {
+    drawMouthCenterRubberForeground(metrics, r);
+    return;
+  }
 
   if (metrics.mouthDragMode) {
     drawMouthStretchForeground(metrics, r);
@@ -4384,14 +4624,14 @@ function handlePartTabClick(event) {
   const copy = key === 'cheek'
     ? '点脸颊两侧，往外拉会有果冻脸反馈'
     : key === 'mouth'
-      ? '点住嘴巴往外拽，嘴唇和表情会一起变形'
+      ? '捏住嘴巴中间往外拽，嘴巴会压扁并拉出橡胶感'
       : key === 'ear'
         ? '点耳朵边缘往外拽，松手会弹回来'
         : key === 'hair'
           ? '点头发往上提，会有软软的拉伸'
           : key === 'nose'
             ? '点小鼻子往外拉，别太用力'
-            : '点住嘴巴往外拽，这是主爽感';
+            : '捏住嘴巴中间往外拽，这是主爽感';
   if (interactionTitleEl) interactionTitleEl.textContent = `试试拽${label}`;
   if (interactionDetailEl) interactionDetailEl.textContent = copy;
   showSpeech(copy);
